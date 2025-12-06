@@ -29,12 +29,16 @@ export default function TweetGenerator() {
     const [isAutoPilotOn, setIsAutoPilotOn] = useState(false);
     const [autoPilotStatus, setAutoPilotStatus] = useState<string>("Idle");
     const [lastAutoPilotCheck, setLastAutoPilotCheck] = useState<Date | null>(null);
+    const [repoUrl, setRepoUrl] = useState('');
+    const [monitoringMode, setMonitoringMode] = useState<'local' | 'remote'>('local');
 
     // Initialize Auto Pilot State
     useEffect(() => {
         getAutoPilotState().then(state => {
             setIsAutoPilotOn(state.isActive);
             if (state.lastRunTime) setLastAutoPilotCheck(new Date(state.lastRunTime));
+            if (state.monitoredRepo) setRepoUrl(state.monitoredRepo);
+            if (state.monitoringMode) setMonitoringMode(state.monitoringMode);
         });
     }, []);
 
@@ -86,8 +90,9 @@ export default function TweetGenerator() {
     const toggleAutoPilotHandler = async () => {
         const newState = !isAutoPilotOn;
         setIsAutoPilotOn(newState);
-        await toggleAutoPilot(newState);
-        toast.success(newState ? "Auto Pilot Enabled" : "Auto Pilot Disabled");
+        // Pass repoUrl if present to switch to remote mode
+        await toggleAutoPilot(newState, repoUrl);
+        toast.success(newState ? (repoUrl ? `Monitoring ${repoUrl}` : "Auto Pilot Enabled (Local)") : "Auto Pilot Disabled");
     };
 
     const handleGenerate = async () => {
@@ -170,8 +175,20 @@ export default function TweetGenerator() {
 
                 {/* Auto Pilot Control */}
                 <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-full">
+                    {/* Remote Repo Input */}
+                    <input
+                        type="text"
+                        value={repoUrl}
+                        onChange={(e) => setRepoUrl(e.target.value)}
+                        placeholder="github.com/owner/repo"
+                        className="bg-transparent text-xs border-none outline-none w-32 text-gray-600 dark:text-gray-300 placeholder-gray-400"
+                    />
+                    <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
+
                     <div className="flex flex-col items-end mr-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Auto Pilot</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                            {repoUrl ? 'Remote' : 'Local'} Pilot
+                        </span>
                         <span className="text-[10px] text-gray-400 whitespace-nowrap">{autoPilotStatus}</span>
                     </div>
                     <button

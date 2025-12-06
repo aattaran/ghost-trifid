@@ -80,3 +80,16 @@ export async function postThread(tweets: { text: string; media?: { media_ids: st
 
 // Alias for compatibility if other files expect 'publishThread'
 export const publishThread = postThread;
+
+/**
+ * Checks if the current credentials have valid permissions.
+ */
+export async function verifyTwitterCredentials() {
+    try {
+        const me = await rwClient.v2.me();
+        return { success: true, username: me.data.username };
+    } catch (error: any) {
+        console.error("Auth Check Failed:", error);
+        return { success: false, error: error.message };
+    }
+}
