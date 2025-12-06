@@ -1,5 +1,7 @@
 {
-  "lastCommitHash": "a40f803eb846295625f8dd426ad0ff999531cc53",
+  "lastCommitHash": "7b8aca6e00a9ac6b12df2a460b2f522d4282709c",
   "lastRunTime": 0,
-  "isActive": true
+  "isActive": true,
+  "monitoredRepo": "vercel/ai",
+  "monitoringMode": "remote"
 }
