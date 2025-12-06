@@ -86,9 +86,9 @@ function getMockData(input: string) {
             "3/3 Check your server logs for the specific '404' or 'Permission' error."
         ],
         imagePrompts: [
-            "A fallback mock image description 1",
-            "A fallback mock image description 2",
-            "A fallback mock image description 3"
+            "Digital network failure illustration, abstract connection breakdown, blue and orange",
+            "Broken link icon in futuristic style, neon cybernetic aesthetic",
+            "System reboot visualization, loading spinner in 3d space"
         ]
     };
 }

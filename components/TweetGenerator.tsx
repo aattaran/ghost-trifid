@@ -108,13 +108,52 @@ export default function TweetGenerator() {
                     placeholder="What do you want to post about?"
                     className="flex-1 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 min-h-[100px] focus:ring-2 focus:ring-purple-500 outline-none transition-all"
                 />
-                <button
-                    onClick={handleGenerate}
-                    disabled={isLoading || !input.trim()}
-                    className="px-6 py-4 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:opacity-80 disabled:opacity-50 transition-all whitespace-nowrap min-w-[140px]"
-                >
-                    {isLoading ? 'Brainstorming...' : 'Generate ➜'}
-                </button>
+                <div className="flex flex-col gap-2 min-w-[140px]">
+                    <button
+                        onClick={handleGenerate}
+                        disabled={isLoading || !input.trim()}
+                        className="w-full px-6 py-4 bg-black dark:bg-white text-white dark:text-black font-bold rounded-xl hover:opacity-80 disabled:opacity-50 transition-all whitespace-nowrap"
+                    >
+                        {isLoading ? 'Thinking...' : 'Generate ➜'}
+                    </button>
+                    <button
+                        onClick={async () => {
+                            try {
+                                setIsLoading(true);
+                                const { analyzeProjectStatus } = await import('@/app/actions/git');
+                                toast.loading("Scanning project...", { id: 'scan' });
+
+                                // 1. Get Git Status
+                                const res = await analyzeProjectStatus();
+                                if (res.success && res.summary) {
+                                    setInput(res.summary);
+                                    toast.loading("Generating viral tweets...", { id: 'scan' });
+
+                                    // 2. Auto-Generate Options
+                                    const genRes = await generateOptionsAction(res.summary);
+                                    if (genRes.success && genRes.data) {
+                                        const data = genRes.data as TweetOptions;
+                                        setOptions(data);
+                                        // Auto-fetch images
+                                        if (data.imagePrompts && Array.isArray(data.imagePrompts)) {
+                                            data.imagePrompts.forEach((p, i) => generatePreview(p, i));
+                                        }
+                                        toast.success("Ready to publish!", { id: 'scan' });
+                                    }
+                                } else {
+                                    toast.error("Scan failed", { id: 'scan' });
+                                }
+                            } catch (e) {
+                                toast.error("Auto-gen failed", { id: 'scan' });
+                            } finally {
+                                setIsLoading(false);
+                            }
+                        }}
+                        className="w-full px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 font-semibold rounded-xl hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-all text-sm flex items-center justify-center gap-2"
+                    >
+                        <span>🔮</span> Auto-Scan & Generate
+                    </button>
+                </div>
             </div>
 
             {options && (

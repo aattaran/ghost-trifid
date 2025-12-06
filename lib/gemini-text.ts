@@ -9,10 +9,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 export async function generateTweetVariations(rawText: string) {
-    if (!process.env.GEMINI_API_KEY) return null;
+  if (!process.env.GEMINI_API_KEY) return null;
 
-    const prompt = `
-    You are a viral social media manager.
+  const prompt = `
+    You are an expert software developer.
     Rewrite the following text into 3 distinct Twitter/X formats:
     1. "The Hook" (Clickbaity, short, engaging)
     2. "The Value" (Professional, insightful, bullet points)
@@ -28,14 +28,14 @@ export async function generateTweetVariations(rawText: string) {
     }
   `;
 
-    try {
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        // Clean markdown code blocks if Gemini adds them
-        const jsonStr = text.replace(/```json|```/g, "").trim();
-        return JSON.parse(jsonStr);
-    } catch (error) {
-        console.error("Gemini Text Gen Failed:", error);
-        return null;
-    }
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    // Clean markdown code blocks if Gemini adds them
+    const jsonStr = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(jsonStr);
+  } catch (error) {
+    console.error("Gemini Text Gen Failed:", error);
+    return null;
+  }
 }
