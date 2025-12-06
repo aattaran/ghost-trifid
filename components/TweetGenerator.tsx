@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { generateOptionsAction, postCreativeTweet, generateImagePreview } from '@/app/actions/thread';
+import { checkAndRunAutoPilot, toggleAutoPilot, getAutoPilotState } from '@/app/actions/autopilot';
 
 interface TweetOptions {
     hook: string;
@@ -23,6 +24,71 @@ export default function TweetGenerator() {
 
     // Modal State
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+    // Auto Pilot State
+    const [isAutoPilotOn, setIsAutoPilotOn] = useState(false);
+    const [autoPilotStatus, setAutoPilotStatus] = useState<string>("Idle");
+    const [lastAutoPilotCheck, setLastAutoPilotCheck] = useState<Date | null>(null);
+
+    // Initialize Auto Pilot State
+    useEffect(() => {
+        getAutoPilotState().then(state => {
+            setIsAutoPilotOn(state.isActive);
+            if (state.lastRunTime) setLastAutoPilotCheck(new Date(state.lastRunTime));
+        });
+    }, []);
+
+    // Auto Pilot Scheduler (Client-Side Driver)
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+
+        if (isAutoPilotOn) {
+            // Run immediately on enable (optional, maybe too aggressive? Let's wait for interval)
+            // interval = setInterval(runCheck, 1000 * 60 * 60); // Every hour
+            // For Demo/Testing: Every 60 seconds
+            const runCheck = async () => {
+                setAutoPilotStatus("Checking...");
+                try {
+                    const res = await checkAndRunAutoPilot();
+                    setLastAutoPilotCheck(new Date());
+
+                    if (res.success) {
+                        if (res.posted) {
+                            toast.success(`AutoPilot: Posted update! (${res.commits} commits)`);
+                            setAutoPilotStatus(`Posted at ${new Date().toLocaleTimeString()}`);
+                        } else {
+                            setAutoPilotStatus(`Checked at ${new Date().toLocaleTimeString()} (No new changes)`);
+                        }
+                    } else {
+                        setAutoPilotStatus(`Error: ${res.error || res.reason}`);
+                    }
+                } catch (e) {
+                    setAutoPilotStatus("Error executing check");
+                }
+            };
+
+            // Run one check nicely after 5s to verify functionality
+            const initialTimeout = setTimeout(runCheck, 5000);
+
+            interval = setInterval(runCheck, 60000); // Check every minute
+
+            return () => {
+                clearInterval(interval);
+                clearTimeout(initialTimeout);
+            };
+        } else {
+            setAutoPilotStatus("Disabled");
+        }
+
+        return () => clearInterval(interval);
+    }, [isAutoPilotOn]);
+
+    const toggleAutoPilotHandler = async () => {
+        const newState = !isAutoPilotOn;
+        setIsAutoPilotOn(newState);
+        await toggleAutoPilot(newState);
+        toast.success(newState ? "Auto Pilot Enabled" : "Auto Pilot Disabled");
+    };
 
     const handleGenerate = async () => {
         if (!input.trim()) return;
@@ -47,7 +113,7 @@ export default function TweetGenerator() {
             } else {
                 toast.error("Failed to generate ideas");
             }
-        } catch (e) {
+        } catch (_) {
             toast.error("Error generating options");
         } finally {
             setIsLoading(false);
@@ -88,7 +154,7 @@ export default function TweetGenerator() {
             } else {
                 toast.error("Publish failed: " + res.error, { id: 'pub' });
             }
-        } catch (e) {
+        } catch (_) {
             toast.error("Publish error", { id: 'pub' });
         } finally {
             setPublishingType(null);
@@ -97,9 +163,25 @@ export default function TweetGenerator() {
 
     return (
         <div className="w-full max-w-5xl mx-auto p-6 bg-white dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-gray-800">
-            <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-                ✨ Creative Tweet Composer
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+                    ✨ Creative Tweet Composer
+                </h2>
+
+                {/* Auto Pilot Control */}
+                <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-full">
+                    <div className="flex flex-col items-end mr-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Auto Pilot</span>
+                        <span className="text-[10px] text-gray-400 whitespace-nowrap">{autoPilotStatus}</span>
+                    </div>
+                    <button
+                        onClick={toggleAutoPilotHandler}
+                        className={`w-10 h-6 rounded-full transition-colors relative ${isAutoPilotOn ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                        <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${isAutoPilotOn ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+            </div>
 
             <div className="flex gap-4 items-start flex-col sm:flex-row">
                 <textarea
@@ -143,7 +225,7 @@ export default function TweetGenerator() {
                                 } else {
                                     toast.error("Scan failed", { id: 'scan' });
                                 }
-                            } catch (e) {
+                            } catch (_) {
                                 toast.error("Auto-gen failed", { id: 'scan' });
                             } finally {
                                 setIsLoading(false);

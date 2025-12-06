@@ -17,13 +17,36 @@ export async function getRecentGitActivity(limit: number = 5): Promise<string> {
     }
 }
 
+export async function getCurrentCommitHash(): Promise<string> {
+    try {
+        const { stdout } = await execAsync('git rev-parse HEAD');
+        return stdout.trim();
+    } catch (error) {
+        console.error("Failed to get current commit hash:", error);
+        return "";
+    }
+}
+
+export async function getNewCommits(sinceHash: string): Promise<string[]> {
+    try {
+        if (!sinceHash) return [];
+        // Get commits between sinceHash and HEAD
+        const { stdout } = await execAsync(`git log ${sinceHash}..HEAD --pretty=format:"%s"`);
+        return stdout.trim().split('\n').filter(Boolean);
+    } catch (error) {
+        // If the range fails (e.g. sinceHash is invalid/force pushed away), return empty or handle gracefully
+        console.warn("Failed to get range of commits:", error);
+        return [];
+    }
+}
+
 export async function getProjectContextSummary(): Promise<string> {
     const gitLog = await getRecentGitActivity(5);
 
     // Fallback/Enhancement: Read Task.md
     let taskStatus = "";
     try {
-        const taskPath = String.raw`C:\Users\AATTARAN\.gemini\antigravity\brain\39658f55-ffb3-411c-99d0-b80fba4cc4b4\task.md`;
+        const taskPath = String.raw`C:\Users\AATTARAN\.gemini\antigravity\brain\ab04d1bb-7418-4576-bd45-32165e93ebcc\task.md`;
         const fileContent = await fs.readFile(taskPath, 'utf-8');
         // Extract recent completed tasks (lines starting with - [x])
         const completed = fileContent

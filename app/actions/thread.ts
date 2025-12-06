@@ -14,9 +14,10 @@ export async function generateOptionsAction(input: string) {
         }
 
         return { success: true, data: variations };
-    } catch (error: any) {
+    } catch (error) {
         console.error("Action Error:", error);
-        return { success: false, error: error.message || "Unknown server error" };
+        const errorMessage = error instanceof Error ? error.message : "Unknown server error";
+        return { success: false, error: errorMessage };
     }
 }
 
@@ -29,8 +30,8 @@ export async function generateImagePreview(prompt: string) {
             return { success: true, image: `data:image/png;base64,${base64}` };
         }
         return { success: false, error: "Failed to generate image" };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : "Unknown error generating preview" };
     }
 }
 
@@ -70,7 +71,7 @@ export async function postCreativeTweet(
         return await postThread(threadTweets);
 
     } else if (typeof content === 'string') {
-        const singlePrompt = Array.isArray(imagePrompts) ? imagePrompts[0] : imagePrompts;
+        // const singlePrompt = Array.isArray(imagePrompts) ? imagePrompts[0] : imagePrompts;
 
         // Note: postToTwitter currently doesn't support media in this simplified version.
         // We could expand it if needed, but for now focus on Thread images.
