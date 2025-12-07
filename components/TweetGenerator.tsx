@@ -181,7 +181,7 @@ export default function TweetGenerator() {
                         value={repoUrl}
                         onChange={(e) => setRepoUrl(e.target.value)}
                         placeholder="github.com/owner/repo"
-                        className="bg-transparent text-xs border-none outline-none w-32 text-gray-600 dark:text-gray-300 placeholder-gray-400"
+                        className="bg-transparent text-sm border-none outline-none w-60 text-gray-600 dark:text-gray-300 placeholder-gray-400"
                     />
                     <div className="w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
 
