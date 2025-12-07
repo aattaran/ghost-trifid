@@ -7,6 +7,7 @@ import { getLatestRemoteCommitHash, getRemoteCommits, fetchAndSummarizeRepo } fr
 import { generateOptionsAction, postCreativeTweet } from "./thread";
 
 const STATE_FILE = path.join(process.cwd(), '.autopilot.json');
+const DAILY_POST_LIMIT = 15; // Twitter Free Tier = 17, but we reserve 2 for manual posts
 
 interface AutoPilotState {
     lastCommitHash: string;
@@ -14,6 +15,9 @@ interface AutoPilotState {
     isActive: boolean;
     monitoredRepo?: string; // owner/repo
     monitoringMode?: 'local' | 'remote';
+    // Rate Limit Tracking
+    postsToday: number;
+    lastPostDate: string; // YYYY-MM-DD format
 }
 
 export async function getAutoPilotState(): Promise<AutoPilotState> {
@@ -21,7 +25,7 @@ export async function getAutoPilotState(): Promise<AutoPilotState> {
         const data = await fs.readFile(STATE_FILE, 'utf-8');
         return JSON.parse(data);
     } catch (error) {
-        return { lastCommitHash: '', lastRunTime: 0, isActive: false, monitoringMode: 'local' };
+        return { lastCommitHash: '', lastRunTime: 0, isActive: false, monitoringMode: 'local', postsToday: 0, lastPostDate: '' };
     }
 }
 
@@ -153,12 +157,7 @@ export async function checkAndRunAutoPilot() {
 
             let summary = (summaryRes.success && summaryRes.summary) ? summaryRes.summary : "Could not fetch summary.";
 
-            // Re-attach viral tweets context for the backend Auto Pilot
-            if (summaryRes.success && summaryRes.viralTweets && summaryRes.viralTweets.length > 0) {
-                const viralSection = `\n\n**Viral Inspiration (Style References):**\nUse the tone and hook style of these high-performing tweets as a guide:\n${summaryRes.viralTweets.slice(0, 3).map((t: string) => `- "${t.replace(/\n/g, ' ')}"`).join('\n')}`;
-                summary += viralSection;
-            }
-
+            // Note: viralTweets are fetched separately via Search API, not included in repo summary
             contextSummary = summary;
         }
 
@@ -241,6 +240,21 @@ export async function checkAndRunAutoPilot() {
     }
 
     // -----------------------------------------
+    // 4.5 RATE LIMIT CHECK (Before posting)
+    // -----------------------------------------
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    if (state.lastPostDate !== today) {
+        // New day - reset counter
+        state.postsToday = 0;
+        state.lastPostDate = today;
+    }
+
+    if (state.postsToday >= DAILY_POST_LIMIT) {
+        console.log(`AutoPilot: Daily limit reached (${state.postsToday}/${DAILY_POST_LIMIT}). Waiting until tomorrow.`);
+        return { success: true, changes: newCommits.length, message: `Daily limit reached (${DAILY_POST_LIMIT}). Waiting.` };
+    }
+
+    // -----------------------------------------
     // 5. Generate Content
     // -----------------------------------------
     const prompt = `
@@ -292,7 +306,10 @@ export async function checkAndRunAutoPilot() {
         // 7. Update State
         state.lastCommitHash = currentHash;
         state.lastRunTime = Date.now();
+        state.postsToday = (state.postsToday || 0) + 1;
+        state.lastPostDate = today;
         await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2));
+        console.log(`AutoPilot: Post successful! (${state.postsToday}/${DAILY_POST_LIMIT} today)`);
         return { success: true, posted: true, changes: newCommits.length, type: schedule.type };
     } else {
         return { success: false, error: 'post_failed', details: postRes.error };

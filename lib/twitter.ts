@@ -175,7 +175,7 @@ export async function searchViralTweets(query: string): Promise<ViralTweet[]> {
         // rather than hanging the server for 15 minutes waiting for cooldown.
         // NOTE: Free Tier does NOT support expansions or user.fields. Keep it minimal.
         const result = await rwClient.v2.search(searchQuery, {
-            max_results: 10,
+            max_results: 100, // Maximize tweets per search (Free Tier only allows 1 search/15min)
             'tweet.fields': ['public_metrics', 'created_at']
         });
 
