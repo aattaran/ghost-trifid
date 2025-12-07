@@ -336,10 +336,25 @@ export async function checkAndRunAutoPilot() {
     if (schedule.type === 'hook') contentToPost = options.hook;
     if (schedule.type === 'thread') contentToPost = options.thread;
 
+    // For threads, try to use real code screenshots instead of AI images
+    let imagePromptsToUse = options.imagePrompts;
+    if (schedule.type === 'thread' && state.monitoringMode === 'remote' && state.monitoredRepo) {
+        const [owner, repo] = state.monitoredRepo.split('/');
+        const { getRepoFileContent } = await import('./github-api');
+
+        // Fetch code from a key file to use as screenshot
+        const fileResult = await getRepoFileContent(owner, repo, 'lib/autopilot-core.ts');
+        if (fileResult.success && fileResult.code) {
+            console.log('📸 Using real code screenshot for thread!');
+            // Prefix with CODE: to trigger code screenshot in thread-api
+            imagePromptsToUse = [`CODE:${fileResult.code}`];
+        }
+    }
+
     console.log(`📤 AutoPilot: Posting ${schedule.type}...`);
     logs.push(`Posting ${schedule.type} to Twitter...`);
 
-    const postRes = await postCreativeTweet(contentToPost, schedule.type, options.imagePrompts);
+    const postRes = await postCreativeTweet(contentToPost, schedule.type, imagePromptsToUse);
 
     if (postRes.success) {
         state.lastCommitHash = currentHash;

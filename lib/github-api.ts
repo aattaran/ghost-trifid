@@ -125,3 +125,57 @@ export async function fetchAndSummarizeRepo(repoString: string) {
         return { success: false, error: error.message || "Failed to parse repository." };
     }
 }
+
+/**
+ * Fetches the raw content of a file from a GitHub repository
+ * @param owner Repo owner
+ * @param repo Repo name
+ * @param filePath Path to the file (e.g., 'lib/autopilot-core.ts')
+ * @param branch Branch name (default: main)
+ * @returns Object with success status and code snippet
+ */
+export async function getRepoFileContent(
+    owner: string,
+    repo: string,
+    filePath: string,
+    branch: string = 'main'
+): Promise<{ success: boolean; code?: string; error?: string }> {
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
+
+    try {
+        console.log(`📥 Fetching file: ${filePath}`);
+
+        const response = await fetch(rawUrl, {
+            signal: AbortSignal.timeout(10000),
+            headers: { 'User-Agent': 'Antigravity-Agent' }
+        });
+
+        if (!response.ok) {
+            return { success: false, error: `File not found: ${filePath}` };
+        }
+
+        const content = await response.text();
+
+        // Extract a meaningful snippet (first function or class, max 20 lines)
+        const lines = content.split('\n');
+        let startIndex = 0;
+
+        // Find the start of a function or export
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].match(/^(export\s+)?(async\s+)?function\s+\w+|^(export\s+)?class\s+\w+|^(export\s+)?const\s+\w+\s*=/)) {
+                startIndex = i;
+                break;
+            }
+        }
+
+        const maxLines = 15;
+        const snippet = lines.slice(startIndex, startIndex + maxLines).join('\n');
+
+        return { success: true, code: snippet.trim() || lines.slice(0, maxLines).join('\n').trim() };
+
+    } catch (error: any) {
+        console.error('❌ Failed to fetch file:', error.message);
+        return { success: false, error: error.message };
+    }
+}
+

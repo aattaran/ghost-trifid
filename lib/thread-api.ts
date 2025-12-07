@@ -1,5 +1,6 @@
 import { generateTweetVariations } from "@/lib/ai";
-import { generateImage } from "@/lib/image-gen";
+// import { generateImage } from "@/lib/image-gen"; // DISABLED: Using code screenshots instead
+import { generateCodeScreenshot } from "@/lib/code-screenshot";
 import { postThread, postToTwitter, uploadMedia } from "@/lib/twitter";
 
 // Action to generate text options
@@ -20,7 +21,11 @@ export async function generateOptionsAction(input: string) {
 }
 
 // Action to generate an image preview
+// NOTE: This function still uses Imagen for UI previews, not for autopilot posts
 export async function generateImagePreview(prompt: string) {
+    // DISABLED: Return error since we're using code screenshots now
+    return { success: false, error: "Image generation disabled. Using code screenshots instead." };
+    /* Original Imagen code:
     try {
         const imgBuffer = await generateImage(prompt);
         if (imgBuffer) {
@@ -31,19 +36,33 @@ export async function generateImagePreview(prompt: string) {
     } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : "Unknown error generating preview" };
     }
+    */
 }
 
 // Action to Post the chosen version
 export async function postCreativeTweet(
     content: string | string[],
     type: 'hook' | 'value' | 'thread',
-    imagePrompts?: string | string[] // Can now be array
+    imagePrompts?: string | string[] // Should be "CODE:actual_code_here" for code screenshots
 ) {
 
     try {
-        // Helper to upload single prompt
+        // Helper to generate and upload CODE SCREENSHOTS ONLY
+        // Gemini image generation is DISABLED
         const uploadPrompt = async (p: string) => {
-            const imgBuffer = await generateImage(p);
+            let imgBuffer: Buffer | null = null;
+
+            // Check if this is a code screenshot request (starts with "CODE:")
+            if (p.startsWith('CODE:')) {
+                const code = p.substring(5).trim();
+                imgBuffer = await generateCodeScreenshot({ code, theme: 'dracula' });
+            } else {
+                // DISABLED: Gemini image generation
+                // imgBuffer = await generateImage(p);
+                console.log('⚠️ Skipping non-CODE image prompt (Imagen disabled):', p.substring(0, 50) + '...');
+                return undefined;
+            }
+
             if (imgBuffer) return await uploadMedia(imgBuffer, 'image/png');
             return undefined;
         };
