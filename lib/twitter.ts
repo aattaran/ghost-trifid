@@ -44,10 +44,21 @@ async function autoRetry<T>(operation: () => Promise<T>, maxRetries = 2): Promis
                 if (resetHeader) {
                     const now = Math.floor(Date.now() / 1000);
                     waitSeconds = (resetHeader - now) + 5; // Buffer 5s
-                    if (waitSeconds < 0) waitSeconds = 60;
+                    console.log(`🕐 Reset Header: ${resetHeader}, Now: ${now}, Wait: ${waitSeconds}s`);
+                    console.log(`📅 API resets at: ${new Date(resetHeader * 1000).toLocaleString()}`);
                 }
 
-                if (i === maxRetries) throw error; // Don't wait if it's the last attempt
+                // FIX: If the wait is too long (e.g. > 15 seconds), do NOT hang the server. 
+                // Just fail fast so the user knows.
+                if (waitSeconds > 15) {
+                    const resetTime = resetHeader
+                        ? new Date(resetHeader * 1000).toLocaleTimeString()
+                        : 'Unknown';
+                    console.error(`⛔ Cooldown too long (${waitSeconds}s). Resets at ${resetTime}.`);
+                    throw new Error(`Rate limit hit. Resets at ${resetTime} (~${Math.ceil(waitSeconds / 60)} min).`);
+                }
+
+                if (i === maxRetries) throw error;
 
                 console.warn(`⏳ Waiting ${waitSeconds} seconds for cooldown...`);
                 // Wait...
@@ -134,7 +145,24 @@ export async function verifyTwitterCredentials() {
  * Searches for viral tweets related to a query.
  * Criteria: min_faves:50 OR min_retweets:10, lang:en, no retweets/replies/links
  */
-export async function searchViralTweets(query: string): Promise<string[]> {
+// Interface for rich tweet data
+export interface ViralTweet {
+    id: string;
+    text: string;
+    author: {
+        name: string;
+        username: string;
+    };
+    metrics: {
+        likes: number;
+        retweets: number;
+        replies: number;
+    };
+    url: string;
+    createdAt: string;
+}
+
+export async function searchViralTweets(query: string): Promise<ViralTweet[]> {
     try {
         // Simplified query to avoid 400 errors (some operators require Basic/Pro tiers)
         // We remove min_faves/retweets for now to ensure it works, then add back.
@@ -145,6 +173,7 @@ export async function searchViralTweets(query: string): Promise<string[]> {
         // DIRECT CALL (No autoRetry):
         // If we hit a rate limit, we want to FAIL FAST and show Mocks, 
         // rather than hanging the server for 15 minutes waiting for cooldown.
+        // NOTE: Free Tier does NOT support expansions or user.fields. Keep it minimal.
         const result = await rwClient.v2.search(searchQuery, {
             max_results: 10,
             'tweet.fields': ['public_metrics', 'created_at']
@@ -155,9 +184,28 @@ export async function searchViralTweets(query: string): Promise<string[]> {
             return [];
         }
 
-        // Return just the text, maybe sorted by likes if strictly needed, 
-        // but API relevance is usually good enough.
-        return result.tweets.map(t => t.text);
+        // Map raw tweets to rich ViralTweet objects
+        // Since Free Tier doesn't give author_id expansions, we generate pseudo-author from tweet ID
+        return result.tweets.map(t => {
+            const metrics = t.public_metrics;
+            // Generate pseudo-author from first word of tweet (visual placeholder)
+            const firstWord = t.text.split(' ')[0].replace(/[^a-zA-Z]/g, '') || 'User';
+            return {
+                id: t.id,
+                text: t.text,
+                author: {
+                    name: `${firstWord}...`,
+                    username: `user_${t.id.slice(-4)}`
+                },
+                metrics: {
+                    likes: metrics?.like_count || 0,
+                    retweets: metrics?.retweet_count || 0,
+                    replies: metrics?.reply_count || 0
+                },
+                url: `https://twitter.com/i/status/${t.id}`,
+                createdAt: t.created_at || new Date().toISOString()
+            };
+        });
 
     } catch (error: any) {
         console.error("❌ Search Failed:", error.message || "Unknown error");
@@ -166,9 +214,30 @@ export async function searchViralTweets(query: string): Promise<string[]> {
         // This ensures the UI still shows how the feature *would* work.
         console.log("⚠️ Falling back to MOCK viral tweets.");
         return [
-            "Manifesting a summer full of shipping, learning, and clear skin. ✨ #BuildInPublic",
-            "Stop overthinking. Start shipping. The market doesn't care about your clean code, it cares about your product. 🚀",
-            "I built a SaaS in 48 hours. Here's exactly how I did it (and the stack I used): 🧵"
+            {
+                id: "mock1",
+                text: "Manifesting a summer full of shipping, learning, and clear skin. ✨ #BuildInPublic",
+                author: { name: "Sarah Builds", username: "sarah_dev" },
+                metrics: { likes: 1250, retweets: 340, replies: 45 },
+                url: "#",
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: "mock2",
+                text: "Stop overthinking. Start shipping. The market doesn't care about your clean code, it cares about your product. 🚀",
+                author: { name: "Indie Hacker", username: "ship_fast" },
+                metrics: { likes: 3400, retweets: 890, replies: 120 },
+                url: "#",
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: "mock3",
+                text: "I built a SaaS in 48 hours. Here's exactly how I did it (and the stack I used): 🧵",
+                author: { name: "Tech Lead", username: "tech_guru" },
+                metrics: { likes: 8900, retweets: 2100, replies: 560 },
+                url: "#",
+                createdAt: new Date().toISOString()
+            }
         ];
     }
 }

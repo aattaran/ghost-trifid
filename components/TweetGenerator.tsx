@@ -14,19 +14,33 @@ interface TweetOptions {
     imagePrompts?: string[];
 }
 
+interface ViralTweet {
+    id: string;
+    text: string;
+    author: {
+        name: string;
+        username: string;
+    };
+    metrics: {
+        likes: number;
+        retweets: number;
+        replies: number;
+    };
+    url: string;
+    createdAt: string;
+}
+
 export default function TweetGenerator() {
     // -------------------------------------------------------------
     // Core Workflow State
     // -------------------------------------------------------------
     // Step 1: Source
-    const [sourceMode, setSourceMode] = useState<'manual' | 'github'>('manual');
-    const [contextInput, setContextInput] = useState(''); // Textarea content
-    const [repoUrl, setRepoUrl] = useState('');
-    const [isFetchingRepo, setIsFetchingRepo] = useState(false);
+    const [contextInput, setContextInput] = useState(''); // Textarea content (User input or Repo URL)
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
 
     // Step 2: Inspiration
     const [viralTopic, setViralTopic] = useState('');
-    const [viralTweets, setViralTweets] = useState<string[]>([]);
+    const [viralTweets, setViralTweets] = useState<ViralTweet[]>([]);
     const [selectedViralTweets, setSelectedViralTweets] = useState<string[]>([]);
     const [isFetchingViral, setIsFetchingViral] = useState(false);
 
@@ -94,30 +108,59 @@ export default function TweetGenerator() {
     // -------------------------------------------------------------
     // Actions
     // -------------------------------------------------------------
-    const handleFetchRepo = async () => {
-        if (!repoUrl) return;
-        setIsFetchingRepo(true);
-        try {
-            const res = await fetchAndSummarizeRepo(repoUrl);
-            if (res.success && res.summary) {
-                setContextInput(res.summary);
-                setSourceMode('github'); // Keep visually selected but result is in context
+    const handleAnalyze = async () => {
+        if (!contextInput.trim()) {
+            toast.error("Please enter a URL or description");
+            return;
+        }
 
-                // Pre-fill topic for step 2
-                if (res.repoName) {
-                    const topic = res.repoName.split('/')[1] || res.repoName;
-                    setViralTopic(topic);
-                    // Trigger fetch
-                    handleFetchViral(topic);
+        setIsAnalyzing(true);
+        try {
+            // Smart Detection: Is it a GitHub URL?
+            // Matches: github.com/owner/repo OR just owner/repo
+            const githubRegex = /github\.com\/([^\/]+\/[^\/]+)|(^[\w-]+\/[\w-]+$)/;
+            const match = contextInput.match(githubRegex);
+
+            if (match) {
+                // It's a Repo!
+                const repoPath = match[1] || match[2] || contextInput; // Fallback
+                toast.loading(`Analyzing repo: ${repoPath}...`, { id: 'analyze' });
+
+                const res = await fetchAndSummarizeRepo(repoPath);
+
+                if (res.success && res.summary) {
+                    setContextInput(res.summary); // Replace URL with Summary
+
+                    // Auto-extract topic
+                    if (res.repoName) {
+                        const topic = res.repoName.split('/')[1];
+                        setViralTopic(topic);
+                        handleFetchViral(topic);
+                    }
+                    toast.success("Repo analyzed!", { id: 'analyze' });
+                } else {
+                    toast.error(res.error || "Failed to analyze repo", { id: 'analyze' });
                 }
-                toast.success("Repo summarized!");
             } else {
-                toast.error(res.error || "Failed to fetch repo");
+                // It's Manual Text!
+                // Just keep the text as context.
+                // Bonus: Try to find viral tweets if text is long enough
+                if (contextInput.length > 20) {
+                    // Simple heuristic: take first relevant word or just leave topic blank for user
+                    // For now, we won't force a topic search to avoid noise, 
+                    // unless user explicitly sets one in Step 2.
+                    toast.success("Context set!", { id: 'analyze' });
+                } else {
+                    toast("Context set. Ready for Step 2.", { icon: '✍️' });
+                }
             }
+            // Scroll to next step (optional, but good UX)
+            document.getElementById('step-2')?.scrollIntoView({ behavior: 'smooth' });
+
         } catch (e) {
-            toast.error("Error fetching repo");
+            toast.error("Analysis failed", { id: 'analyze' });
         } finally {
-            setIsFetchingRepo(false);
+            setIsAnalyzing(false);
         }
     };
 
@@ -129,8 +172,8 @@ export default function TweetGenerator() {
         try {
             const res = await fetchViralTweetsAction(topic);
             if (res.success && res.tweets) {
-                setViralTweets(res.tweets);
-                setSelectedViralTweets(res.tweets); // Select all by default
+                setViralTweets(res.tweets as ViralTweet[]);
+                setSelectedViralTweets(res.tweets.map((t: any) => t.text)); // Select all text by default
             } else {
                 toast.error("Could not find viral tweets");
             }
@@ -226,11 +269,11 @@ export default function TweetGenerator() {
         }
     };
 
-    const toggleViralSelection = (tweet: string) => {
-        if (selectedViralTweets.includes(tweet)) {
-            setSelectedViralTweets(prev => prev.filter(t => t !== tweet));
+    const toggleViralSelection = (text: string) => {
+        if (selectedViralTweets.includes(text)) {
+            setSelectedViralTweets(prev => prev.filter(t => t !== text));
         } else {
-            setSelectedViralTweets(prev => [...prev, tweet]);
+            setSelectedViralTweets(prev => [...prev, text]);
         }
     };
 
@@ -280,57 +323,39 @@ export default function TweetGenerator() {
                 <section className="space-y-4">
                     <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-lg">1</div>
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Choose Source</h2>
+                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Smart Context</h2>
                     </div>
 
-                    <div className="bg-white dark:bg-black/30 border border-gray-200 dark:border-gray-800 rounded-2xl p-1 overflow-hidden">
-                        <div className="flex border-b border-gray-100 dark:border-gray-800">
-                            <button
-                                onClick={() => setSourceMode('manual')}
-                                className={`flex-1 py-3 text-sm font-bold transition-all ${sourceMode === 'manual' ? 'bg-white dark:bg-gray-900 shadow-sm text-blue-600 rounded-xl' : 'text-gray-400 hover:text-gray-600'}`}
-                            >
-                                ✍️ Manual Input
-                            </button>
-                            <button
-                                onClick={() => setSourceMode('github')}
-                                className={`flex-1 py-3 text-sm font-bold transition-all ${sourceMode === 'github' ? 'bg-white dark:bg-gray-900 shadow-sm text-black dark:text-white rounded-xl' : 'text-gray-400 hover:text-gray-600'}`}
-                            >
-                                <span className="mr-2">GitHub</span> GitHub Repo
-                            </button>
-                        </div>
+                    <div className="bg-white dark:bg-black/30 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                        <label className="block text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                            What did you ship today?
+                        </label>
+                        <textarea
+                            value={contextInput}
+                            onChange={(e) => setContextInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && e.metaKey && handleAnalyze()}
+                            placeholder="Paste a GitHub URL (e.g. vercel/ai) or describe your update..."
+                            className="w-full min-h-[120px] bg-gray-50 dark:bg-gray-900 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 text-lg text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none transition-all resize-y"
+                        />
 
-                        <div className="p-6">
-                            {sourceMode === 'github' && (
-                                <div className="flex gap-2 mb-4 animate-in fade-in slide-in-from-top-2">
-                                    <input
-                                        value={repoUrl}
-                                        onChange={(e) => setRepoUrl(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleFetchRepo()}
-                                        placeholder="owner/repo (e.g. vercel/ai)"
-                                        className="flex-1 bg-gray-50 dark:bg-gray-800 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-black dark:focus:ring-white outline-none"
-                                    />
-                                    <button
-                                        onClick={handleFetchRepo}
-                                        disabled={isFetchingRepo}
-                                        className="bg-black dark:bg-white text-white dark:text-black font-bold px-6 rounded-xl hover:opacity-80 transition-opacity disabled:opacity-50"
-                                    >
-                                        {isFetchingRepo ? 'Fetching...' : 'Fetch'}
-                                    </button>
-                                </div>
-                            )}
-
-                            <textarea
-                                value={contextInput}
-                                onChange={(e) => setContextInput(e.target.value)}
-                                placeholder={sourceMode === 'manual' ? "What did you build today? Paste snippets, thoughts, or changelogs..." : "Repository summary will appear here..."}
-                                className="w-full min-h-[150px] bg-transparent border-none resize-y outline-none text-lg text-gray-700 dark:text-gray-300 placeholder-gray-300"
-                            />
+                        <div className="flex justify-end mt-4">
+                            <button
+                                onClick={handleAnalyze}
+                                disabled={!contextInput.trim() || isAnalyzing}
+                                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isAnalyzing ? (
+                                    <><span>⚙️</span> Analyzing...</>
+                                ) : (
+                                    <><span>⚡</span> Analyze Context</>
+                                )}
+                            </button>
                         </div>
                     </div>
                 </section>
 
                 {/* STEP 2: INSPIRATION */}
-                <section className="space-y-4">
+                <section className="space-y-4" id="step-2">
                     <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-600 text-white font-bold text-lg">2</div>
                         <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Refine Inspiration</h2>
@@ -360,22 +385,47 @@ export default function TweetGenerator() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {viralTweets.map((t, i) => {
-                                    const isSelected = selectedViralTweets.includes(t);
+                                {viralTweets.map((t) => {
+                                    const isSelected = selectedViralTweets.includes(t.text);
                                     return (
                                         <div
-                                            key={i}
-                                            onClick={() => toggleViralSelection(t)}
-                                            className={`p-4 rounded-xl cursor-pointer transition-all border-2 relative overflow-hidden group ${isSelected
-                                                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 shadow-md transform scale-[1.02]'
-                                                    : 'border-transparent bg-gray-50 dark:bg-gray-900 hover:border-gray-200 dark:hover:border-gray-700'
+                                            key={t.id}
+                                            onClick={() => toggleViralSelection(t.text)}
+                                            className={`p-5 rounded-2xl cursor-pointer transition-all border relative overflow-hidden group flex flex-col justify-between h-full gap-4 ${isSelected
+                                                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 shadow-md transform scale-[1.02]'
+                                                : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-purple-300 dark:hover:border-purple-700'
                                                 }`}
                                         >
-                                            <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-4 leading-relaxed font-medium">
-                                                "{t}"
+                                            {/* Author Header */}
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center font-bold text-xs text-gray-600 dark:text-gray-300 uppercase">
+                                                        {t.author.name.substring(0, 2)}
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs font-bold text-gray-900 dark:text-gray-100">{t.author.name}</span>
+                                                        <span className="text-[10px] text-gray-500">@{t.author.username}</span>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
+                                                    {new Date(t.createdAt).toLocaleDateString()}
+                                                </span>
+                                            </div>
+
+                                            {/* Tweet Text */}
+                                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
+                                                "{t.text}"
                                             </p>
+
+                                            {/* Metrics Footer */}
+                                            <div className="flex items-center gap-4 text-gray-400 text-xs border-t border-gray-100 dark:border-gray-800 pt-3 mt-auto">
+                                                <span className="flex items-center gap-1"><span className="text-pink-500">♥</span> {t.metrics.likes.toLocaleString()}</span>
+                                                <span className="flex items-center gap-1"><span>🔁</span> {t.metrics.retweets.toLocaleString()}</span>
+                                                <span className="flex items-center gap-1"><span>💬</span> {t.metrics.replies.toLocaleString()}</span>
+                                            </div>
+
                                             {isSelected && (
-                                                <div className="absolute top-2 right-2 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center">
+                                                <div className="absolute top-2 right-2 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center shadow-lg">
                                                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                                                 </div>
                                             )}
