@@ -1,7 +1,7 @@
 {
-  "lastCommitHash": "force_reset_1765060858705",
+  "lastCommitHash": "40a95fa768d1288a342c2aa1ad2140d798d00c9b",
   "lastRunTime": 0,
-  "isActive": false,
+  "isActive": true,
   "monitoredRepo": "vercel/ai",
   "monitoringMode": "remote"
 }

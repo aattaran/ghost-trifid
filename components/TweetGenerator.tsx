@@ -35,7 +35,8 @@ export default function TweetGenerator() {
     // Core Workflow State
     // -------------------------------------------------------------
     // Step 1: Source
-    const [contextInput, setContextInput] = useState(''); // Textarea content (User input or Repo URL)
+    const [repoUrl, setRepoUrl] = useState(''); // GitHub URL input
+    const [contextInput, setContextInput] = useState(''); // Manual text input
     const [isAnalyzing, setIsAnalyzing] = useState(false);
 
     // Step 2: Inspiration
@@ -108,60 +109,45 @@ export default function TweetGenerator() {
     // -------------------------------------------------------------
     // Actions
     // -------------------------------------------------------------
-    const handleAnalyze = async () => {
-        if (!contextInput.trim()) {
-            toast.error("Please enter a URL or description");
+    // Fetch and summarize a GitHub repo
+    const handleFetchRepo = async () => {
+        if (!repoUrl.trim()) {
+            toast.error("Please enter a GitHub URL or owner/repo");
             return;
         }
-
         setIsAnalyzing(true);
+        toast.loading(`Fetching repo...`, { id: 'repo' });
         try {
-            // Smart Detection: Is it a GitHub URL?
-            // Matches: github.com/owner/repo OR just owner/repo
-            const githubRegex = /github\.com\/([^\/]+\/[^\/]+)|(^[\w-]+\/[\w-]+$)/;
-            const match = contextInput.match(githubRegex);
-
-            if (match) {
-                // It's a Repo!
-                const repoPath = match[1] || match[2] || contextInput; // Fallback
-                toast.loading(`Analyzing repo: ${repoPath}...`, { id: 'analyze' });
-
-                const res = await fetchAndSummarizeRepo(repoPath);
-
-                if (res.success && res.summary) {
-                    setContextInput(res.summary); // Replace URL with Summary
-
-                    // Auto-extract topic
-                    if (res.repoName) {
-                        const topic = res.repoName.split('/')[1];
-                        setViralTopic(topic);
-                        handleFetchViral(topic);
-                    }
-                    toast.success("Repo analyzed!", { id: 'analyze' });
-                } else {
-                    toast.error(res.error || "Failed to analyze repo", { id: 'analyze' });
+            const match = repoUrl.match(/github\.com\/([^\/]+\/[^\/\s]+)/);
+            const repoPath = match ? match[1] : repoUrl.trim();
+            const res = await fetchAndSummarizeRepo(repoPath);
+            if (res.success && res.summary) {
+                setContextInput(res.summary);
+                if (res.repoName) {
+                    const topic = res.repoName.split('/')[1];
+                    setViralTopic(topic);
+                    handleFetchViral(topic);
                 }
+                toast.success("Repo analyzed!", { id: 'repo' });
+                document.getElementById('step-2')?.scrollIntoView({ behavior: 'smooth' });
             } else {
-                // It's Manual Text!
-                // Just keep the text as context.
-                // Bonus: Try to find viral tweets if text is long enough
-                if (contextInput.length > 20) {
-                    // Simple heuristic: take first relevant word or just leave topic blank for user
-                    // For now, we won't force a topic search to avoid noise, 
-                    // unless user explicitly sets one in Step 2.
-                    toast.success("Context set!", { id: 'analyze' });
-                } else {
-                    toast("Context set. Ready for Step 2.", { icon: '✍️' });
-                }
+                toast.error(res.error || "Failed to fetch repo", { id: 'repo' });
             }
-            // Scroll to next step (optional, but good UX)
-            document.getElementById('step-2')?.scrollIntoView({ behavior: 'smooth' });
-
         } catch (e) {
-            toast.error("Analysis failed", { id: 'analyze' });
+            toast.error("Repo fetch failed", { id: 'repo' });
         } finally {
             setIsAnalyzing(false);
         }
+    };
+
+    // Lock in manual context and proceed
+    const handleSetContext = () => {
+        if (!contextInput.trim()) {
+            toast.error("Please describe your update");
+            return;
+        }
+        toast.success("Context ready!");
+        document.getElementById('step-2')?.scrollIntoView({ behavior: 'smooth' });
     };
 
     const handleFetchViral = async (topicOverride?: string) => {
@@ -323,32 +309,64 @@ export default function TweetGenerator() {
                 <section className="space-y-4">
                     <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-lg">1</div>
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Smart Context</h2>
+                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Context Source</h2>
                     </div>
 
-                    <div className="bg-white dark:bg-black/30 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                        <label className="block text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">
-                            What did you ship today?
-                        </label>
-                        <textarea
-                            value={contextInput}
-                            onChange={(e) => setContextInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && e.metaKey && handleAnalyze()}
-                            placeholder="Paste a GitHub URL (e.g. vercel/ai) or describe your update..."
-                            className="w-full min-h-[120px] bg-gray-50 dark:bg-gray-900 border-2 border-transparent focus:border-blue-500 rounded-xl p-4 text-lg text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none transition-all resize-y"
-                        />
+                    <div className="bg-white dark:bg-black/30 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm space-y-6">
 
-                        <div className="flex justify-end mt-4">
+                        {/* GitHub URL Input */}
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                                🔗 GitHub Repository (Optional)
+                            </label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={repoUrl}
+                                    onChange={(e) => setRepoUrl(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleFetchRepo()}
+                                    placeholder="owner/repo or https://github.com/owner/repo"
+                                    className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none focus:border-blue-500 transition-all"
+                                />
+                                <button
+                                    onClick={handleFetchRepo}
+                                    disabled={!repoUrl.trim() || isAnalyzing}
+                                    className="px-5 py-3 bg-gray-900 dark:bg-white text-white dark:text-black font-bold rounded-xl hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                                >
+                                    {isAnalyzing ? '⏳' : '→ Fetch'}
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">Fetches recent commits and generates a summary.</p>
+                        </div>
+
+                        {/* Divider */}
+                        <div className="flex items-center gap-4">
+                            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                            <span className="text-xs font-bold text-gray-400 uppercase">or</span>
+                            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                        </div>
+
+                        {/* Manual Prompt */}
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
+                                ✍️ Manual Prompt
+                            </label>
+                            <textarea
+                                value={contextInput}
+                                onChange={(e) => setContextInput(e.target.value)}
+                                placeholder="What did you build today? Describe your update, milestone, or share a code snippet..."
+                                className="w-full min-h-[100px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none focus:border-blue-500 transition-all resize-y"
+                            />
+                        </div>
+
+                        {/* Proceed Button */}
+                        <div className="flex justify-end">
                             <button
-                                onClick={handleAnalyze}
-                                disabled={!contextInput.trim() || isAnalyzing}
+                                onClick={handleSetContext}
+                                disabled={!contextInput.trim()}
                                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isAnalyzing ? (
-                                    <><span>⚙️</span> Analyzing...</>
-                                ) : (
-                                    <><span>⚡</span> Analyze Context</>
-                                )}
+                                <span>⚡</span> Lock Context & Proceed
                             </button>
                         </div>
                     </div>
