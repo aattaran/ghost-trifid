@@ -23,7 +23,7 @@ const client = new TwitterApi({
     accessSecret: process.env.TWITTER_ACCESS_SECRET!,
 });
 
-export const rwClient = client.readWrite;
+export const rwClient = client;
 
 /**
  * Automatically retries the operation if a Rate Limit (429) is hit.
