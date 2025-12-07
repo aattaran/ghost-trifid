@@ -20,7 +20,12 @@ export async function generateTweetVariations(input: string) {
 
             const prompt = `
             You are an expert software engineer who is also a viral social media manager.
-            Rewrite the following text into 3 distinct Twitter/X formats:
+            Rewrite the following text into 3 distinct Twitter/X formats.
+
+            **Style Instruction:**
+            If the input contains a "Viral Inspiration" section, analyze those tweets. MIMIC their sentence structure, hook style, and tone exactly.
+
+            **Output Formats:**
             1. "The Hook" (Clickbaity, short, engaging)
             2. "The Value" (Professional, insightful, bullet points)
             3. "The Thread" (A 3-part thread structure)

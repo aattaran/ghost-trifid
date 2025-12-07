@@ -31,13 +31,18 @@ export async function toggleAutoPilot(isActive: boolean, repoUrl?: string): Prom
     let monitoringMode = currentState.monitoringMode || 'local';
 
     // Parse Repo URL if provided
-    if (repoUrl) {
+    if (repoUrl && repoUrl.trim().length > 0) {
         // Support full URL or owner/repo format
         const match = repoUrl.match(/github\.com\/([^\/]+\/[^\/]+)/) || repoUrl.match(/^([^\/]+\/[^\/]+)$/);
         if (match) {
             monitoredRepo = match[1].replace('.git', ''); // clean up
             monitoringMode = 'remote';
         }
+    } else {
+        // If no URL provided (empty input), explicit fallback to LOCAL
+        // This prevents stuck "remote" state if user clears the box.
+        monitoringMode = 'local';
+        monitoredRepo = undefined; // Clear the tracked repo
     }
 
     // Initialize Hash if turning ON
@@ -143,10 +148,18 @@ export async function checkAndRunAutoPilot() {
             // So we fetch last 10.
             const remoteCommits = await getRemoteCommits(owner, repo, 10);
             newCommits = remoteCommits.map((c: any) => c.message);
-            // TODO: Filter out commits we've already seen if possible, or just rely on scoring.
             // For MVP, we pass the batch.
             const summaryRes = await fetchAndSummarizeRepo(`${owner}/${repo}`);
-            contextSummary = (summaryRes.success && summaryRes.summary) ? summaryRes.summary : "Could not fetch summary.";
+
+            let summary = (summaryRes.success && summaryRes.summary) ? summaryRes.summary : "Could not fetch summary.";
+
+            // Re-attach viral tweets context for the backend Auto Pilot
+            if (summaryRes.success && summaryRes.viralTweets && summaryRes.viralTweets.length > 0) {
+                const viralSection = `\n\n**Viral Inspiration (Style References):**\nUse the tone and hook style of these high-performing tweets as a guide:\n${summaryRes.viralTweets.slice(0, 3).map((t: string) => `- "${t.replace(/\n/g, ' ')}"`).join('\n')}`;
+                summary += viralSection;
+            }
+
+            contextSummary = summary;
         }
 
     } else {
@@ -164,6 +177,7 @@ export async function checkAndRunAutoPilot() {
         return { success: true, changes: 0, message: 'No new commits' };
     }
 
+
     // Safety check
     if (newCommits.length === 0) {
         state.lastCommitHash = currentHash;
@@ -171,7 +185,42 @@ export async function checkAndRunAutoPilot() {
         return { success: true, changes: 0, message: 'Hash changed but no commits retrieved.' };
     }
 
-    console.log(`AutoPilot: Found ${newCommits.length} new commits.`);
+    // ------------------------------------------------------------------
+    // Phase 3 Upgrade: Smart Filtering & Batching
+    // ------------------------------------------------------------------
+    console.log(`AutoPilot: Raw commits found: ${newCommits.length}`);
+
+    // 1. Filter Noise
+    const importantCommits = newCommits.filter(msg => {
+        const lower = msg.toLowerCase();
+        return !lower.startsWith('chore:') && !lower.startsWith('wip:') && !lower.startsWith('merge');
+    });
+
+    if (importantCommits.length === 0) {
+        console.log("AutoPilot: Skipped noise commits (chore/wip).");
+        state.lastCommitHash = currentHash; // Advance hash so we don't re-process noise
+        await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2));
+        return { success: true, changes: 0, message: 'Skipped noise commits.' };
+    }
+
+    // 2. Check for "Golden Triggers" (Immediate high value)
+    const hasGoldenTrigger = importantCommits.some(msg => {
+        const lower = msg.toLowerCase();
+        return lower.includes('feat:') || lower.includes('fix:') || lower.includes('major:');
+    });
+
+    // 3. Batching Logic
+    if (!hasGoldenTrigger && importantCommits.length < 3) {
+        // Too few updates. Wait.
+        // IMPORTANT: Do NOT update lastCommitHash so we fetch these again + new ones next time.
+        return { success: true, changes: importantCommits.length, message: `Batching: ${importantCommits.length}/3 commits (No major triggers).` };
+    }
+
+    console.log(`AutoPilot: Processing ${importantCommits.length} important commits.`);
+
+    // Update list for downstream logic
+    newCommits = importantCommits;
+
 
     // -----------------------------------------
     // 3. Significance Check
@@ -244,7 +293,7 @@ export async function checkAndRunAutoPilot() {
         state.lastCommitHash = currentHash;
         state.lastRunTime = Date.now();
         await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2));
-        return { success: true, posted: true, commits: newCommits.length, type: schedule.type };
+        return { success: true, posted: true, changes: newCommits.length, type: schedule.type };
     } else {
         return { success: false, error: 'post_failed', details: postRes.error };
     }

@@ -24,7 +24,11 @@ async function testRemotePilot() {
     const res1 = await checkAndRunAutoPilot();
     console.log("Check 1 Result:", res1);
 
-    if (res1.success && (res1.message?.includes('No new commits') || res1.changes >= 0)) {
+    // Fixed safe access to properties
+    const hasNoCommitsMsg = res1.message?.includes('No new commits');
+    const hasChanges = (res1 as any).changes !== undefined && (res1 as any).changes >= 0;
+
+    if (res1.success && (hasNoCommitsMsg || hasChanges)) {
         console.log("✅ Remote Pilot successfully connected.");
     } else {
         console.error("❌ Check failed:", res1);

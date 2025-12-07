@@ -78,24 +78,32 @@ export async function fetchAndSummarizeRepo(repoString: string) {
         const cleanString = repoString.replace(/\/$/, ''); // remove trailing slash
 
         if (cleanString.startsWith('http')) {
-            const url = new URL(cleanString);
-            const parts = url.pathname.split('/').filter(Boolean);
-            // usually owner is index 0, repo is index 1
-            if (parts.length >= 2) {
-                owner = parts[0];
-                repo = parts[1];
+            try {
+                const url = new URL(cleanString);
+                const parts = url.pathname.split('/').filter(Boolean);
+                if (parts.length >= 2) {
+                    owner = parts[0];
+                    repo = parts[1].replace('.git', '');
+                }
+            } catch (e) {
+                // Invalid URL, ignore
             }
         } else {
             // handle "owner/repo" string format
             const parts = cleanString.split('/');
-            if (parts.length >= 2) {
+            // Strict check: must have exactly 2 parts or be identifiable
+            if (parts.length === 2 && parts[0] && parts[1]) {
                 owner = parts[0];
                 repo = parts[1];
             }
         }
 
         if (!owner || !repo) {
-            return { success: false, error: "Invalid repository format. Use 'owner/repo' or full URL." };
+            return { success: false, error: "Invalid repository format. Please use 'owner/repo' (e.g. vercel/ai) or a full GitHub URL." };
+        }
+
+        if (!owner || !repo) {
+            return { success: false, error: "Invalid repository format. Please use 'owner/repo' (e.g. vercel/ai) or a full GitHub URL." };
         }
 
         console.log(`🔍 Fetching remote commits for: ${owner}/${repo}`);
@@ -115,6 +123,7 @@ export async function fetchAndSummarizeRepo(repoString: string) {
             commits.map(c => `- ${c.message} (Date: ${c.date})`).join('\n') +
             `\n\nTask: Write an engaging 'Build in Public' update about this progress. Focus on the value of these changes and the momentum.`;
 
+        // Return summary and repo name. Viral tweets are now fetched by the UI in Step 2.
         return { success: true, summary, repoName: `${owner}/${repo}` };
 
     } catch (error: any) {
