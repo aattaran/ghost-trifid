@@ -7,6 +7,31 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
+// ====================================
+// GRACEFUL SHUTDOWN - Prevent orphaned processes
+// ====================================
+let isShuttingDown = false;
+
+const shutdown = (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
+    process.exit(0);
+};
+
+// Handle terminal close, Ctrl+C, and kill signals
+process.on('SIGINT', () => shutdown('SIGINT'));   // Ctrl+C
+process.on('SIGTERM', () => shutdown('SIGTERM')); // kill command
+process.on('SIGHUP', () => shutdown('SIGHUP'));   // Terminal closed
+
+// Windows-specific: Handle Ctrl+C on Windows terminals
+if (process.platform === 'win32') {
+    const readline = require('readline');
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.on('close', () => shutdown('CLOSE'));
+}
+
+
 async function main() {
     console.log("🚀 Starting Ghost Trifid Autopilot V2 (Headless Mode)");
 

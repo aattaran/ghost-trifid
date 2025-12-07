@@ -25,6 +25,69 @@ const client = new TwitterApi({
 
 export const rwClient = client;
 
+// =====================================
+// TWITTER QUOTA TRACKING
+// =====================================
+export interface TwitterQuota {
+    dailyLimit: number;
+    dailyRemaining: number;
+    dailyReset: Date;
+    lastChecked: Date;
+    isExhausted: boolean;
+}
+
+// Store quota state
+let currentQuota: TwitterQuota = {
+    dailyLimit: 17,
+    dailyRemaining: 17,
+    dailyReset: new Date(),
+    lastChecked: new Date(0),
+    isExhausted: false
+};
+
+/**
+ * Updates quota tracking from API response headers
+ */
+function updateQuotaFromHeaders(headers: Record<string, string | string[] | undefined>) {
+    const limit = headers['x-app-limit-24hour-limit'];
+    const remaining = headers['x-app-limit-24hour-remaining'];
+    const reset = headers['x-app-limit-24hour-reset'];
+
+    if (limit) currentQuota.dailyLimit = parseInt(String(limit), 10);
+    if (remaining) currentQuota.dailyRemaining = parseInt(String(remaining), 10);
+    if (reset) currentQuota.dailyReset = new Date(parseInt(String(reset), 10) * 1000);
+
+    currentQuota.lastChecked = new Date();
+    currentQuota.isExhausted = currentQuota.dailyRemaining <= 0;
+
+    // Log quota status
+    console.log(`📊 Twitter Quota: ${currentQuota.dailyRemaining}/${currentQuota.dailyLimit} tweets remaining`);
+    if (currentQuota.isExhausted) {
+        console.log(`⏰ Resets at: ${currentQuota.dailyReset.toLocaleString()}`);
+    }
+}
+
+/**
+ * Get current quota status
+ */
+export function getQuotaStatus(): TwitterQuota {
+    return { ...currentQuota };
+}
+
+/**
+ * Check if we can post (have quota remaining)
+ */
+export function canPost(): boolean {
+    // If last check was more than 5 mins ago, we might be stale
+    const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
+    if (currentQuota.lastChecked < fiveMinsAgo) {
+        // Quota might have reset, allow the attempt
+        return true;
+    }
+    return !currentQuota.isExhausted;
+}
+
+
 /**
  * Automatically retries the operation if a Rate Limit (429) is hit.
  * Waits for the reset time specified in headers.
@@ -37,7 +100,24 @@ async function autoRetry<T>(operation: () => Promise<T>, maxRetries = 2): Promis
             if (error instanceof ApiResponseError && error.code === 429) {
                 console.warn(`⚠️ Twitter Rate Limit Hit! (Attempt ${i + 1}/${maxRetries + 1})`);
 
-                // Calculate wait time
+                // Extract quota info from headers if available
+                if (error.headers) {
+                    updateQuotaFromHeaders(error.headers);
+                }
+
+                // Check if it's a 24-hour daily limit (not short-term rate limit)
+                const dailyRemaining = error.headers?.['x-app-limit-24hour-remaining'];
+                if (dailyRemaining !== undefined && parseInt(String(dailyRemaining), 10) <= 0) {
+                    const resetTimestamp = error.headers?.['x-app-limit-24hour-reset'];
+                    const resetTime = resetTimestamp
+                        ? new Date(parseInt(String(resetTimestamp), 10) * 1000).toLocaleString()
+                        : 'Unknown';
+                    console.error(`🚫 DAILY LIMIT EXHAUSTED! You've used all 17 tweets for today.`);
+                    console.error(`⏰ Quota resets at: ${resetTime}`);
+                    throw new Error(`Daily tweet limit exhausted (0/17). Resets at ${resetTime}.`);
+                }
+
+                // Calculate wait time for short-term rate limit
                 let waitSeconds = 15 * 60; // Default 15 mins
                 const resetHeader = error.rateLimit?.reset;
 
