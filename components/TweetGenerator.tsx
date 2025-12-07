@@ -98,7 +98,13 @@ export default function TweetGenerator() {
             return;
         }
 
-        if (autoPilotStatus === "Idle" || autoPilotStatus === "Disabled") {
+        // Pause monitoring if we are in Creator Mode
+        if (activePanel === 'creator') {
+            setAutoPilotStatus("Paused (Creator Mode)");
+            return;
+        }
+
+        if (autoPilotStatus === "Idle" || autoPilotStatus === "Disabled" || autoPilotStatus === "Paused (Creator Mode)") {
             setAutoPilotStatus("Active (Monitoring)");
         }
 
@@ -119,8 +125,11 @@ export default function TweetGenerator() {
 
         const interval = setInterval(runCheck, 300000); // 5 mins
 
+        // Immediate check if we just switched back
+        // runCheck(); 
+
         return () => clearInterval(interval);
-    }, [isAutoPilotOn]);
+    }, [isAutoPilotOn, activePanel]);
 
 
     // -------------------------------------------------------------
