@@ -19,16 +19,22 @@ export async function generateTweetVariations(input: string) {
             });
 
             const prompt = `
-            You are an expert software engineer who is also a viral social media manager.
+            You are an expert software engineer who wants to generate viral tweets about your code.
             Rewrite the following text into 3 distinct Twitter/X formats.
+
+            **CRITICAL: CHARACTER LIMITS**
+            - The "hook" MUST be under 270 characters (strict limit).
+            - The "value" MUST be under 270 characters (strict limit).
+            - Each part of the "thread" array MUST be under 270 characters.
+            Be concise. Remove unnecessary words. Use abbreviations if needed. COUNT YOUR CHARACTERS.
 
             **Style Instruction:**
             If the input contains a "Viral Inspiration" section, analyze those tweets. MIMIC their sentence structure, hook style, and tone exactly.
 
             **Output Formats:**
-            1. "The Hook" (Clickbaity, short, engaging)
-            2. "The Value" (Professional, insightful, bullet points)
-            3. "The Thread" (A 3-part thread structure)
+            1. "The Hook" (Clickbaity, short, engaging - MAX 280 chars)
+            2. "The Value" (Professional, insightful, concise - MAX 280 chars)
+            3. "The Thread" (A 3-part thread, each part MAX 280 chars)
 
             Input Text: "${input}"
 
@@ -37,7 +43,7 @@ export async function generateTweetVariations(input: string) {
               "hook": "...",
               "value": "...",
               "thread": ["part 1", "part 2", "part 3"],
-              "imagePrompts": ["Image for tweet 1", "Image for tweet 2", "Image for tweet 3"]
+              "imagePrompts": ["Image for tweet 1", "Image for tweet 2", "Image for tweet 3"] // Can suggest screenshots of actual code
             }
             `;
 

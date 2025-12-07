@@ -1,8 +1,8 @@
-import { getCurrentCommitHash, getNewCommits, getProjectContextSummary } from "@/lib/git";
-import { getLatestRemoteCommitHash, getRemoteCommits, fetchAndSummarizeRepo } from "@/lib/github-api";
-import { generateOptionsAction, postCreativeTweet } from "@/lib/thread-api";
-import { searchViralTweets } from "@/lib/twitter";
-import { logAutoPilotAction, getLastPostedCommit } from "@/lib/supabase";
+import { getCurrentCommitHash, getNewCommits, getProjectContextSummary } from "./git";
+import { getLatestRemoteCommitHash, getRemoteCommits, fetchAndSummarizeRepo } from "./github-api";
+import { generateOptionsAction, postCreativeTweet } from "./thread-api";
+import { searchViralTweets } from "./twitter";
+import { logAutoPilotAction, getLastPostedCommit } from "./supabase";
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -131,9 +131,13 @@ export async function checkAndRunAutoPilot() {
     const state = await getAutoPilotState();
     const repoName = state.monitoredRepo || 'local';
 
+    const logs: string[] = [];
+
     if (!state.isActive) {
-        return { success: false, reason: 'inactive' };
+        return { success: false, reason: 'inactive', logs: ['Autopilot is disabled'] };
     }
+
+    logs.push("Starting check cycle...");
 
     // -----------------------------------------
     // STEP 1: Check for new commits
@@ -145,12 +149,15 @@ export async function checkAndRunAutoPilot() {
     if (state.monitoringMode === 'remote' && state.monitoredRepo) {
         const [owner, repo] = state.monitoredRepo.split('/');
         const hash = await getLatestRemoteCommitHash(owner, repo);
-        if (!hash) return { success: false, error: 'no_remote_git' };
+        if (!hash) return { success: false, error: 'no_remote_git', logs: [...logs, "Failed to fetch remote hash"] };
         currentHash = hash;
+        logs.push(`Remote HEAD: ${hash.substring(0, 7)}`);
 
         // Check Supabase for last posted commit (fallback to local state)
         const dbLastHash = await getLastPostedCommit(state.monitoredRepo);
         const lastHash = dbLastHash || state.lastCommitHash;
+
+        logs.push(`Last processed: ${lastHash?.substring(0, 7) || 'None'}`);
 
         if (currentHash !== lastHash) {
             const remoteCommits = await getRemoteCommits(owner, repo, 10);
@@ -160,12 +167,16 @@ export async function checkAndRunAutoPilot() {
         }
     } else {
         currentHash = await getCurrentCommitHash();
-        if (!currentHash) return { success: false, error: 'no_git' };
+        if (!currentHash) return { success: false, error: 'no_git', logs: [...logs, "Failed to get local hash"] };
 
         if (currentHash !== state.lastCommitHash) {
             newCommits = await getNewCommits(state.lastCommitHash);
             contextSummary = await getProjectContextSummary();
         }
+    }
+
+    if (newCommits.length > 0) {
+        logs.push(`Found ${newCommits.length} new commits.`);
     }
 
     // No new commits
@@ -177,7 +188,8 @@ export async function checkAndRunAutoPilot() {
             content: { reason: 'No new commits' },
             status: 'ok'
         });
-        return { success: true, changes: 0, message: 'No new commits' };
+        logs.push("No new commits found since last check.");
+        return { success: true, changes: 0, message: 'No new commits', logs, foundCommits: [] };
     }
 
     // -----------------------------------------
@@ -198,7 +210,8 @@ export async function checkAndRunAutoPilot() {
         });
         state.lastCommitHash = currentHash;
         await saveState(state);
-        return { success: true, changes: 0, message: 'Skipped noise commits' };
+        logs.push("Skipping: Commits detected but they were all noise (chore, wip, merge).");
+        return { success: true, changes: 0, message: 'Skipped noise commits', logs, foundCommits: newCommits };
     }
 
     // -----------------------------------------
@@ -210,7 +223,8 @@ export async function checkAndRunAutoPilot() {
     );
 
     if (!hasGoldenTrigger && importantCommits.length < 3 && score < 3) {
-        return { success: true, changes: importantCommits.length, message: `Batching: ${importantCommits.length}/3 commits, score ${score}/3` };
+        logs.push(`Accumulating: ${importantCommits.length}/3 commits. Score ${score}/3.`);
+        return { success: true, changes: importantCommits.length, message: `Batching: ${importantCommits.length}/3 commits`, logs, foundCommits: importantCommits };
     }
 
     // -----------------------------------------
@@ -230,7 +244,8 @@ export async function checkAndRunAutoPilot() {
             content: { reason: `Daily limit reached (${DAILY_POST_LIMIT})` },
             status: 'rate_limited'
         });
-        return { success: true, message: `Daily limit reached (${DAILY_POST_LIMIT})` };
+        logs.push(`Daily limit reached (${state.postsToday}/${DAILY_POST_LIMIT}). Pausing.`);
+        return { success: true, message: `Daily limit reached`, logs, foundCommits: importantCommits };
     }
 
     // -----------------------------------------
@@ -238,7 +253,8 @@ export async function checkAndRunAutoPilot() {
     // -----------------------------------------
     const schedule = getPostTypeForTime();
     if (!schedule.allowed) {
-        return { success: true, changes: importantCommits.length, message: `Outside active hours. Score: ${score}` };
+        logs.push(`Outside posting window (Hour: ${new Date().getHours()}). Standing by.`);
+        return { success: true, changes: importantCommits.length, message: `Outside active hours.`, logs, foundCommits: importantCommits, summary: contextSummary };
     }
 
     // -----------------------------------------
@@ -250,6 +266,7 @@ export async function checkAndRunAutoPilot() {
 
     if (keywords.length > 0) {
         console.log(`🔎 AutoPilot: Researching viral content for: ${keywords.join(', ')}`);
+        logs.push(`Researching viral content for keywords: ${keywords.join(', ')}`);
         const viralTweets = await searchViralTweets(keywords[0]);
         if (viralTweets.length > 0) {
             viralRefs = viralTweets.slice(0, 3).map(t => t.text);
@@ -280,6 +297,8 @@ export async function checkAndRunAutoPilot() {
     `;
 
     console.log(`🧠 AutoPilot: Generating ${schedule.type} content...`);
+    logs.push(`Generating ${schedule.type} content...`);
+
     const optionsRes = await generateOptionsAction(prompt);
 
     if (!optionsRes.success || !optionsRes.data) {
@@ -290,7 +309,8 @@ export async function checkAndRunAutoPilot() {
             content: { commits: importantCommits, error: 'Generation failed' },
             status: 'failed'
         });
-        return { success: false, error: 'gen_failed' };
+        logs.push("Generation failed.");
+        return { success: false, error: 'gen_failed', logs, foundCommits: importantCommits };
     }
 
     const options = optionsRes.data;
@@ -317,6 +337,8 @@ export async function checkAndRunAutoPilot() {
     if (schedule.type === 'thread') contentToPost = options.thread;
 
     console.log(`📤 AutoPilot: Posting ${schedule.type}...`);
+    logs.push(`Posting ${schedule.type} to Twitter...`);
+
     const postRes = await postCreativeTweet(contentToPost, schedule.type, options.imagePrompts);
 
     if (postRes.success) {
@@ -351,7 +373,8 @@ export async function checkAndRunAutoPilot() {
         });
 
         console.log(`✅ AutoPilot: Posted successfully! (${state.postsToday}/${DAILY_POST_LIMIT} today)`);
-        return { success: true, posted: true, changes: importantCommits.length, type: schedule.type };
+        logs.push(`Successfully posted ${schedule.type}!`);
+        return { success: true, posted: true, changes: importantCommits.length, type: schedule.type, logs, foundCommits: importantCommits, summary: contextSummary };
     } else {
         await logAutoPilotAction({
             repo_name: repoName,
@@ -364,6 +387,7 @@ export async function checkAndRunAutoPilot() {
             status: 'failed'
         });
 
-        return { success: false, error: 'post_failed', details: postRes.error };
+        logs.push(`Post failed: ${postRes.error}`);
+        return { success: false, error: 'post_failed', details: postRes.error, logs, foundCommits: importantCommits };
     }
 }

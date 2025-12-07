@@ -69,6 +69,8 @@ export default function TweetGenerator() {
     const [autoPilotStatus, setAutoPilotStatus] = useState<string>("Idle");
     const [autoPilotRepo, setAutoPilotRepo] = useState('');
     const [lastChecked, setLastChecked] = useState<string>('-');
+    const [logs, setLogs] = useState<string[]>([]);
+    const [foundCommits, setFoundCommits] = useState<string[]>([]);
 
     // Ref to track if generation is active
     const isGeneratingRef = useRef(false);
@@ -113,6 +115,11 @@ export default function TweetGenerator() {
             try {
                 const res = await checkAndRunAutoPilot();
                 setLastChecked(new Date().toLocaleTimeString());
+
+                // Update logs and commits if available
+                if (res.logs && Array.isArray(res.logs)) setLogs(res.logs);
+                if (res.foundCommits && Array.isArray(res.foundCommits)) setFoundCommits(res.foundCommits);
+
                 if (res.success) {
                     setAutoPilotStatus(res.posted ? "Posted Update!" : "Checked - No Triggers");
                 } else {
@@ -120,6 +127,7 @@ export default function TweetGenerator() {
                 }
             } catch (e) {
                 setAutoPilotStatus("Error");
+                setLogs(prev => [...prev, "Critical error during check cycle."]);
             }
         };
 
@@ -467,6 +475,39 @@ export default function TweetGenerator() {
                                 </Button>
                             </div>
                         </div>
+
+                        {/* Live Activity Log */}
+                        {(logs.length > 0 || foundCommits.length > 0) && (
+                            <div className="space-y-3 pt-2 animate-in fade-in slide-in-from-top-2">
+                                <Label className="text-xs uppercase tracking-wide text-gray-500 flex justify-between">
+                                    <span>Live Activity</span>
+                                    <span className="text-[10px] text-gray-400 font-mono">
+                                        {foundCommits.length > 0 ? `${foundCommits.length} commits found` : 'Scanning...'}
+                                    </span>
+                                </Label>
+
+                                <div className="bg-black/90 rounded-xl p-4 font-mono text-[10px] md:text-xs text-green-400/90 h-48 overflow-y-auto space-y-1 shadow-inner ring-1 ring-white/10 custom-scrollbar">
+                                    {logs.length === 0 && <span className="opacity-50 italic">Waiting for next scheduled check...</span>}
+                                    {logs.map((log, i) => (
+                                        <div key={i} className="flex gap-2">
+                                            <span className="opacity-50 select-none">{'>'}</span>
+                                            <span>{log}</span>
+                                        </div>
+                                    ))}
+                                    {foundCommits.length > 0 && (
+                                        <div className="mt-4 pt-4 border-t border-white/10 space-y-1">
+                                            <div className="text-white/60 mb-2 font-bold px-1 uppercase tracking-wider">New Commits Detected:</div>
+                                            {foundCommits.map((commit, i) => (
+                                                <div key={`c-${i}`} className="flex gap-2 text-blue-300">
+                                                    <span className="opacity-50 select-none">•</span>
+                                                    <span className="truncate">{commit}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                     </CardContent>
                 </Card>

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 dotenv.config({ path: '.env.local' });
 
@@ -20,18 +21,10 @@ async function checkLogs() {
         return;
     }
 
-    console.log('📋 Recent AutoPilot Logs:\n');
-
-    for (const log of data || []) {
-        console.log('---');
-        console.log('Action:', log.action_type);
-        console.log('Status:', log.status);
-        console.log('Repo:', log.repo_name);
-        console.log('Time:', log.created_at);
-        if (log.content?.reason) console.log('Reason:', log.content.reason);
-        if (log.content?.error) console.log('Error:', log.content.error);
-        console.log('');
-    }
+    // Write to file for clean reading
+    fs.writeFileSync('logs-output.json', JSON.stringify(data, null, 2));
+    console.log('📋 Logs written to logs-output.json');
 }
 
 checkLogs();
+

@@ -1,0 +1,154 @@
+[
+  {
+    "id": "ecaebd16-9bfe-4d07-b98e-1d50acebb4a8",
+    "created_at": "2025-12-07T21:30:25.049454+00:00",
+    "repo_name": "aattaran/ghost-trifid",
+    "commit_hash": "c5886d2129e3f7e61cb53e0d4a90260d1ac9bb2e",
+    "action_type": "post_fail",
+    "content": {
+      "error": {
+        "type": "about:blank",
+        "title": "Forbidden",
+        "detail": "You are not permitted to perform this action.",
+        "status": 403
+      },
+      "commits": [
+        "feat: Create `TweetGenerator` component for manual and autopilot tweet generation, including GitHub repo analysis, viral inspiration, and image previews.",
+        "feat: Integrate shadcn/ui components, add a TweetGenerator, and update Tailwind CSS configuration and dependencies.",
+        "feat: AutoPilot functional with Supabase, modular architecture, and error handling",
+        "feat: Implement an autopilot system to monitor Git commits (local/remote) and automate social media posts based on commit significance and scheduling.",
+        "feat: Add TweetGenerator component for AI-powered tweet generation, GitHub repo analysis, viral tweet inspiration, and autopilot functionality.",
+        "feat: Implement project context-aware tweet generation with image support and Twitter API integration.",
+        "feat: Implement Twitter API for automated content posting and introduce remote autopilot for repository change monitoring.",
+        "feat: Add an autopilot system for monitoring Git repositories, analyzing commits, and generating scheduled tweets.",
+        "feat: Add TweetGenerator component with AutoPilot functionality and update README.",
+        "feat: Configure remote repository monitoring in `.autopilot.json` and refactor `test-remote-pilot.ts` to use dynamic imports."
+      ]
+    },
+    "status": "failed"
+  },
+  {
+    "id": "ac7194e7-095e-4050-8d3d-66d5892d4ea4",
+    "created_at": "2025-12-07T21:30:24.789177+00:00",
+    "repo_name": "aattaran/ghost-trifid",
+    "commit_hash": "c5886d2129e3f7e61cb53e0d4a90260d1ac9bb2e",
+    "action_type": "generate",
+    "content": {
+      "commits": [
+        "feat: Create `TweetGenerator` component for manual and autopilot tweet generation, including GitHub repo analysis, viral inspiration, and image previews.",
+        "feat: Integrate shadcn/ui components, add a TweetGenerator, and update Tailwind CSS configuration and dependencies.",
+        "feat: AutoPilot functional with Supabase, modular architecture, and error handling",
+        "feat: Implement an autopilot system to monitor Git commits (local/remote) and automate social media posts based on commit significance and scheduling.",
+        "feat: Add TweetGenerator component for AI-powered tweet generation, GitHub repo analysis, viral tweet inspiration, and autopilot functionality.",
+        "feat: Implement project context-aware tweet generation with image support and Twitter API integration.",
+        "feat: Implement Twitter API for automated content posting and introduce remote autopilot for repository change monitoring.",
+        "feat: Add an autopilot system for monitoring Git repositories, analyzing commits, and generating scheduled tweets.",
+        "feat: Add TweetGenerator component with AutoPilot functionality and update README.",
+        "feat: Configure remote repository monitoring in `.autopilot.json` and refactor `test-remote-pilot.ts` to use dynamic imports."
+      ],
+      "viral_refs": [
+        "Manifesting a summer full of shipping, learning, and clear skin. ✨ #BuildInPublic",
+        "Stop overthinking. Start shipping. The market doesn't care about your clean code, it cares about your product. 🚀",
+        "I built a SaaS in 48 hours. Here's exactly how I did it (and the stack I used): 🧵"
+      ],
+      "generated_hook": "Stop overthinking your content strategy. Start shipping code. I just built an AutoPilot engine that turns raw Git commits into viral #BuildInPublic threads automatically. Here's the stack: 🧵",
+      "generated_value": "I turned my Git history into a self-driving marketing engine. 🧠\n\nHere is what I shipped this weekend:\n\n• **AutoPilot System:** Monitors local & remote repos for significant changes.\n• **AI Analysis:** Reads diffs to generate context-aware tweets, not just commit logs.\n• **The Stack:** Integrated Supabase, shadcn/ui, and Twitter API for seamless scheduling.\n\nThe market cares about consistency. Let the code speak for itself. #BuildInPublic",
+      "generated_thread": [
+        "I built a dev-marketing engine in 48 hours. 🛠️\n\nProblem: Coding requires flow. Marketing requires interruption.\nSolution: A system that reads my code and writes the tweets for me.\n\nHere is exactly how `ghost-trifid` works: 🧵",
+        "The Architecture:\n\n1. **The Watcher:** A background process monitors `.autopilot.json` and remote Git activity.\n2. **The Brain:** AI analyzes the commit, synthesizes a narrative, and selects viral hooks.\n3. **The UI:** A TweetGenerator component (built with shadcn/ui) allows for manual overrides before auto-posting.",
+        "Manifesting a summer full of shipping and automated wins. ✨\n\nThe AutoPilot is now functional and monitoring the repo. No more silence between major features. \n\nWhat feature would you automate next? 👇 #BuildInPublic"
+      ]
+    },
+    "status": "success"
+  },
+  {
+    "id": "77f71420-d198-435c-b107-890734a9be1d",
+    "created_at": "2025-12-07T21:28:31.61821+00:00",
+    "repo_name": "aattaran/ghost-trifid",
+    "commit_hash": "c5886d2129e3f7e61cb53e0d4a90260d1ac9bb2e",
+    "action_type": "post_fail",
+    "content": {
+      "error": {
+        "type": "about:blank",
+        "title": "Forbidden",
+        "detail": "You are not permitted to perform this action.",
+        "status": 403
+      },
+      "commits": [
+        "feat: Create `TweetGenerator` component for manual and autopilot tweet generation, including GitHub repo analysis, viral inspiration, and image previews.",
+        "feat: Integrate shadcn/ui components, add a TweetGenerator, and update Tailwind CSS configuration and dependencies.",
+        "feat: AutoPilot functional with Supabase, modular architecture, and error handling",
+        "feat: Implement an autopilot system to monitor Git commits (local/remote) and automate social media posts based on commit significance and scheduling.",
+        "feat: Add TweetGenerator component for AI-powered tweet generation, GitHub repo analysis, viral tweet inspiration, and autopilot functionality.",
+        "feat: Implement project context-aware tweet generation with image support and Twitter API integration.",
+        "feat: Implement Twitter API for automated content posting and introduce remote autopilot for repository change monitoring.",
+        "feat: Add an autopilot system for monitoring Git repositories, analyzing commits, and generating scheduled tweets.",
+        "feat: Add TweetGenerator component with AutoPilot functionality and update README.",
+        "feat: Configure remote repository monitoring in `.autopilot.json` and refactor `test-remote-pilot.ts` to use dynamic imports."
+      ]
+    },
+    "status": "failed"
+  },
+  {
+    "id": "b4046bd1-d9da-48fe-b68c-61708fd7cbab",
+    "created_at": "2025-12-07T21:28:31.404258+00:00",
+    "repo_name": "aattaran/ghost-trifid",
+    "commit_hash": "c5886d2129e3f7e61cb53e0d4a90260d1ac9bb2e",
+    "action_type": "generate",
+    "content": {
+      "commits": [
+        "feat: Create `TweetGenerator` component for manual and autopilot tweet generation, including GitHub repo analysis, viral inspiration, and image previews.",
+        "feat: Integrate shadcn/ui components, add a TweetGenerator, and update Tailwind CSS configuration and dependencies.",
+        "feat: AutoPilot functional with Supabase, modular architecture, and error handling",
+        "feat: Implement an autopilot system to monitor Git commits (local/remote) and automate social media posts based on commit significance and scheduling.",
+        "feat: Add TweetGenerator component for AI-powered tweet generation, GitHub repo analysis, viral tweet inspiration, and autopilot functionality.",
+        "feat: Implement project context-aware tweet generation with image support and Twitter API integration.",
+        "feat: Implement Twitter API for automated content posting and introduce remote autopilot for repository change monitoring.",
+        "feat: Add an autopilot system for monitoring Git repositories, analyzing commits, and generating scheduled tweets.",
+        "feat: Add TweetGenerator component with AutoPilot functionality and update README.",
+        "feat: Configure remote repository monitoring in `.autopilot.json` and refactor `test-remote-pilot.ts` to use dynamic imports."
+      ],
+      "viral_refs": [
+        "Manifesting a summer full of shipping, learning, and clear skin. ✨ #BuildInPublic",
+        "Stop overthinking. Start shipping. The market doesn't care about your clean code, it cares about your product. 🚀",
+        "I built a SaaS in 48 hours. Here's exactly how I did it (and the stack I used): 🧵"
+      ],
+      "generated_hook": "Stop overthinking your content strategy. Start shipping code. 🚀\n\nI just built an AI AutoPilot that monitors my Git commits and automatically generates viral-style tweets. \n\nThe market doesn't care about your marketing schedule, it cares about your product. \n\n#BuildInPublic",
+      "generated_value": "I built a dev-marketing engine in 48 hours. Here's exactly how I automated my #BuildInPublic strategy:\n\n• **AutoPilot System**: Monitors local/remote Git repos for changes.\n• **Context-Aware AI**: `TweetGenerator` analyzes diffs to find the \"value\" in every commit.\n• **Viral Inspiration**: Mimics top-performing hooks automatically.\n• **The Stack**: Supabase, shadcn/ui, Tailwind, and Twitter API integration.\n\nNow I code, and the system handles the hype.",
+      "generated_thread": [
+        "Manifesting a timeline full of shipping, learning, and automated marketing. ✨\n\nI finally solved the biggest friction point in #BuildInPublic: Consistency.\n\nI built a `TweetGenerator` that turns my Git commits into engaging content on autopilot. 🧵",
+        "Here is the technical deep dive:\n\n1. The system hooks into local/remote repositories.\n2. It filters for 'significant' commits (no more 'fix typo' tweets).\n3. AI analyzes the context and applies viral templates.\n4. Posts are scheduled via Twitter API.\n\nBuilt with Supabase and modular architecture.",
+        "The result? I focus on the code, and the engine focuses on the story.\n\nWe just shipped the shadcn/ui integration and full remote monitoring.\n\nStop letting marketing distract you from building. Let the code speak."
+      ]
+    },
+    "status": "success"
+  },
+  {
+    "id": "6b5dde99-c835-401f-97df-7b9b909fe2be",
+    "created_at": "2025-12-07T21:23:04.601057+00:00",
+    "repo_name": "aattaran/ghost-trifid",
+    "commit_hash": "c5886d2129e3f7e61cb53e0d4a90260d1ac9bb2e",
+    "action_type": "post_fail",
+    "content": {
+      "error": {
+        "type": "about:blank",
+        "title": "Forbidden",
+        "detail": "You are not permitted to perform this action.",
+        "status": 403
+      },
+      "commits": [
+        "feat: Create `TweetGenerator` component for manual and autopilot tweet generation, including GitHub repo analysis, viral inspiration, and image previews.",
+        "feat: Integrate shadcn/ui components, add a TweetGenerator, and update Tailwind CSS configuration and dependencies.",
+        "feat: AutoPilot functional with Supabase, modular architecture, and error handling",
+        "feat: Implement an autopilot system to monitor Git commits (local/remote) and automate social media posts based on commit significance and scheduling.",
+        "feat: Add TweetGenerator component for AI-powered tweet generation, GitHub repo analysis, viral tweet inspiration, and autopilot functionality.",
+        "feat: Implement project context-aware tweet generation with image support and Twitter API integration.",
+        "feat: Implement Twitter API for automated content posting and introduce remote autopilot for repository change monitoring.",
+        "feat: Add an autopilot system for monitoring Git repositories, analyzing commits, and generating scheduled tweets.",
+        "feat: Add TweetGenerator component with AutoPilot functionality and update README.",
+        "feat: Configure remote repository monitoring in `.autopilot.json` and refactor `test-remote-pilot.ts` to use dynamic imports."
+      ]
+    },
+    "status": "failed"
+  }
+]

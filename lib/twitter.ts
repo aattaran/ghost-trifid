@@ -74,7 +74,14 @@ async function autoRetry<T>(operation: () => Promise<T>, maxRetries = 2): Promis
 
 export async function postToTwitter(content: string) {
     try {
-        const tweet = await autoRetry(() => rwClient.v2.tweet(content));
+        // SAFETY: Truncate content if it exceeds Twitter's 280 character limit
+        let finalContent = content;
+        if (content.length > 280) {
+            console.warn(`⚠️ Tweet content too long (${content.length} chars). Truncating to 280...`);
+            finalContent = content.slice(0, 277) + '...';
+        }
+
+        const tweet = await autoRetry(() => rwClient.v2.tweet(finalContent));
         console.log("✅ Tweet published:", tweet);
         return { success: true, data: tweet };
     } catch (error: any) {
@@ -115,8 +122,16 @@ export async function uploadMedia(buffer: Buffer, mimeType: string) {
  */
 export async function postThread(tweets: { text: string; media?: { media_ids: string[] } }[]) {
     try {
+        // SAFETY: Truncate each tweet text to 280 chars
+        const safeTweets = tweets.map(tweet => ({
+            ...tweet,
+            text: tweet.text.length > 280
+                ? (console.warn(`⚠️ Thread tweet too long (${tweet.text.length} chars). Truncating...`), tweet.text.slice(0, 277) + '...')
+                : tweet.text
+        }));
+
         // Cast to any to avoid strict tuple length checks from the library types
-        const result = await autoRetry(() => rwClient.v2.tweetThread(tweets as any));
+        const result = await autoRetry(() => rwClient.v2.tweetThread(safeTweets as any));
         console.log("✅ Thread published. Count:", result.length);
         return { success: true, data: result };
     } catch (error: any) {
