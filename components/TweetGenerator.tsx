@@ -7,6 +7,16 @@ import { fetchAndSummarizeRepo } from '@/app/actions/github';
 import { fetchViralTweetsAction } from '@/app/actions/twitter-content';
 import { checkAndRunAutoPilot, toggleAutoPilot, getAutoPilotState } from '@/app/actions/autopilot';
 
+// Shadcn UI Imports
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"; // Note: We might control open state programmatically
+
 interface TweetOptions {
     hook: string;
     value: string;
@@ -32,20 +42,19 @@ interface ViralTweet {
 
 export default function TweetGenerator() {
     // -------------------------------------------------------------
-    // Core Workflow State
+    // Core Workflow State - Creator Studio (Manual)
     // -------------------------------------------------------------
-    // Step 1: Source
-    const [repoUrl, setRepoUrl] = useState(''); // GitHub URL input
-    const [contextInput, setContextInput] = useState(''); // Manual text input
+    const [manualInput, setManualInput] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [activePanel, setActivePanel] = useState<'creator' | 'autopilot'>('creator');
 
-    // Step 2: Inspiration
+    // Inspiration State
     const [viralTopic, setViralTopic] = useState('');
     const [viralTweets, setViralTweets] = useState<ViralTweet[]>([]);
     const [selectedViralTweets, setSelectedViralTweets] = useState<string[]>([]);
     const [isFetchingViral, setIsFetchingViral] = useState(false);
 
-    // Step 3: Creation
+    // Generation State
     const [generatedOptions, setGeneratedOptions] = useState<TweetOptions | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [previewImages, setPreviewImages] = useState<Record<number, string>>({});
@@ -53,15 +62,18 @@ export default function TweetGenerator() {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [publishingType, setPublishingType] = useState<'hook' | 'value' | 'thread' | null>(null);
 
-    // Auto Pilot (Separate Monitoring)
+    // -------------------------------------------------------------
+    // Auto Pilot State (Autonomous)
+    // -------------------------------------------------------------
     const [isAutoPilotOn, setIsAutoPilotOn] = useState(false);
     const [autoPilotStatus, setAutoPilotStatus] = useState<string>("Idle");
     const [autoPilotRepo, setAutoPilotRepo] = useState('');
+    const [lastChecked, setLastChecked] = useState<string>('-');
 
-    // Ref to track if generation is active (avoids closure staleness)
+    // Ref to track if generation is active
     const isGeneratingRef = useRef(false);
 
-    // Abort Controller for "Stop Dreaming"
+    // Abort Controller
     const stopGeneration = () => {
         isGeneratingRef.current = false;
         setIsGenerating(false);
@@ -75,20 +87,26 @@ export default function TweetGenerator() {
         getAutoPilotState().then(state => {
             setIsAutoPilotOn(state.isActive);
             if (state.monitoredRepo) setAutoPilotRepo(state.monitoredRepo);
+            if (state.lastRunTime) setLastChecked(new Date(state.lastRunTime).toLocaleTimeString());
         });
     }, []);
 
-    // Auto Pilot Scheduler
+    // Auto Pilot Scheduler (Frontend Polling for Status Only)
     useEffect(() => {
         if (!isAutoPilotOn) {
             setAutoPilotStatus("Disabled");
             return;
         }
 
+        if (autoPilotStatus === "Idle" || autoPilotStatus === "Disabled") {
+            setAutoPilotStatus("Active (Monitoring)");
+        }
+
         const runCheck = async () => {
             setAutoPilotStatus("Checking...");
             try {
                 const res = await checkAndRunAutoPilot();
+                setLastChecked(new Date().toLocaleTimeString());
                 if (res.success) {
                     setAutoPilotStatus(res.posted ? "Posted Update!" : "Checked - No Triggers");
                 } else {
@@ -100,55 +118,58 @@ export default function TweetGenerator() {
         };
 
         const interval = setInterval(runCheck, 300000); // 5 mins
-        runCheck();
 
         return () => clearInterval(interval);
     }, [isAutoPilotOn]);
 
 
     // -------------------------------------------------------------
-    // Actions
+    // Manual Actions
     // -------------------------------------------------------------
-    // Fetch and summarize a GitHub repo
-    const handleFetchRepo = async () => {
-        if (!repoUrl.trim()) {
-            toast.error("Please enter a GitHub URL or owner/repo");
+    const handleAnalyzeAndGenerate = async () => {
+        if (!manualInput.trim()) {
+            toast.error("Please enter a prompt or repo URL");
             return;
         }
-        setIsAnalyzing(true);
-        toast.loading(`Fetching repo...`, { id: 'repo' });
-        try {
-            const match = repoUrl.match(/github\.com\/([^\/]+\/[^\/\s]+)/);
-            const repoPath = match ? match[1] : repoUrl.trim();
-            const res = await fetchAndSummarizeRepo(repoPath);
-            if (res.success && res.summary) {
-                setContextInput(res.summary);
-                if (res.repoName) {
-                    const topic = res.repoName.split('/')[1];
-                    setViralTopic(topic);
-                    handleFetchViral(topic);
+
+        let context = manualInput;
+        const isRepo = manualInput.includes('github.com') || (manualInput.split('/').length === 2 && !manualInput.includes(' '));
+
+        if (isRepo) {
+            setIsAnalyzing(true);
+            toast.loading(`Analyzing repo...`, { id: 'analyze' });
+            try {
+                const match = manualInput.match(/github\.com\/([^\/]+\/[^\/\s]+)/);
+                const repoPath = match ? match[1] : manualInput.trim();
+                const res = await fetchAndSummarizeRepo(repoPath);
+
+                if (res.success && res.summary) {
+                    context = res.summary;
+                    toast.success("Repo analyzed!", { id: 'analyze' });
+
+                    if (res.repoName) {
+                        const topic = res.repoName.split('/')[1];
+                        setViralTopic(topic);
+                        handleFetchViral(topic);
+                    }
+
+                } else {
+                    toast.error(res.error || "Failed to fetch repo", { id: 'analyze' });
+                    setIsAnalyzing(false);
+                    return;
                 }
-                toast.success("Repo analyzed!", { id: 'repo' });
-                document.getElementById('step-2')?.scrollIntoView({ behavior: 'smooth' });
-            } else {
-                toast.error(res.error || "Failed to fetch repo", { id: 'repo' });
+            } catch (e) {
+                toast.error("Repo fetch failed", { id: 'analyze' });
+                setIsAnalyzing(false);
+                return;
+            } finally {
+                setIsAnalyzing(false);
             }
-        } catch (e) {
-            toast.error("Repo fetch failed", { id: 'repo' });
-        } finally {
-            setIsAnalyzing(false);
         }
+
+        handleGenerate(context);
     };
 
-    // Lock in manual context and proceed
-    const handleSetContext = () => {
-        if (!contextInput.trim()) {
-            toast.error("Please describe your update");
-            return;
-        }
-        toast.success("Context ready!");
-        document.getElementById('step-2')?.scrollIntoView({ behavior: 'smooth' });
-    };
 
     const handleFetchViral = async (topicOverride?: string) => {
         const topic = topicOverride || viralTopic;
@@ -159,7 +180,7 @@ export default function TweetGenerator() {
             const res = await fetchViralTweetsAction(topic);
             if (res.success && res.tweets) {
                 setViralTweets(res.tweets as ViralTweet[]);
-                setSelectedViralTweets(res.tweets.map((t: any) => t.text)); // Select all text by default
+                setSelectedViralTweets(res.tweets.map((t: any) => t.text));
             } else {
                 toast.error("Could not find viral tweets");
             }
@@ -170,19 +191,14 @@ export default function TweetGenerator() {
         }
     };
 
-    const handleGenerate = async () => {
-        if (!contextInput.trim()) {
-            toast.error("Please provide some context (Step 1)");
-            return;
-        }
-
+    const handleGenerate = async (context: string) => {
         setIsGenerating(true);
-        isGeneratingRef.current = true; // Mark active
+        isGeneratingRef.current = true;
         setGeneratedOptions(null);
         setPreviewImages({});
 
         try {
-            let finalPrompt = contextInput;
+            let finalPrompt = context;
 
             if (selectedViralTweets.length > 0) {
                 const styleSection = `\n\n**Viral Inspiration (Style References):**\nUse the tone and hook style of these high-performing tweets as a guide:\n${selectedViralTweets.map(t => `- "${t.replace(/\n/g, ' ')}"`).join('\n')}`;
@@ -191,15 +207,12 @@ export default function TweetGenerator() {
 
             const result = await generateOptionsAction(finalPrompt);
 
-            // Critical Fix: Check the ref, NOT the state variable
             if (!isGeneratingRef.current) return;
 
             if (result.success && result.data) {
                 const data = result.data as TweetOptions;
                 setGeneratedOptions(data);
                 toast.success("Generated!");
-
-                // Start images
                 if (data.imagePrompts) {
                     data.imagePrompts.forEach((p, i) => generatePreview(p, i));
                 }
@@ -255,6 +268,36 @@ export default function TweetGenerator() {
         }
     };
 
+    // -------------------------------------------------------------
+    // Autopilot Actions
+    // -------------------------------------------------------------
+    const handleForceScan = async () => {
+        if (!autoPilotRepo) {
+            toast.error("Set a repo first");
+            return;
+        }
+        toast.loading("Force scanning...", { id: 'scan' });
+        try {
+            const res = await checkAndRunAutoPilot();
+            setLastChecked(new Date().toLocaleTimeString());
+            if (res.success) {
+                if (res.posted) {
+                    toast.success("Found commits & posted!", { id: 'scan' });
+                    setAutoPilotStatus("Posted Update!");
+                } else {
+                    toast.success("Checked - No new triggers", { id: 'scan' });
+                    setAutoPilotStatus("Checked - No Triggers");
+                }
+            } else {
+                toast.error("Scan failed: " + res.error, { id: 'scan' });
+                setAutoPilotStatus("Error");
+            }
+        } catch (e) {
+            toast.error("Scan failed", { id: 'scan' });
+            setAutoPilotStatus("Error");
+        }
+    }
+
     const toggleViralSelection = (text: string) => {
         if (selectedViralTweets.includes(text)) {
             setSelectedViralTweets(prev => prev.filter(t => t !== text));
@@ -263,11 +306,12 @@ export default function TweetGenerator() {
         }
     };
 
+
     // -------------------------------------------------------------
     // UI Render
     // -------------------------------------------------------------
     return (
-        <div className="w-full max-w-5xl mx-auto p-6 md:p-12 space-y-12">
+        <div className="w-full max-w-6xl mx-auto p-4 md:p-8 space-y-12">
 
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200 dark:border-gray-800 pb-6">
@@ -279,272 +323,217 @@ export default function TweetGenerator() {
                         High-Voltage Creative Engine
                     </p>
                 </div>
-
-                {/* Auto Pilot Mini-Dashboard */}
-                <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-900 px-4 py-2 rounded-full border border-gray-200 dark:border-gray-800">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] uppercase font-bold text-gray-400">Auto Pilot</span>
-                        <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${isAutoPilotOn ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-                            <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{autoPilotStatus}</span>
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => {
-                            const newState = !isAutoPilotOn;
-                            setIsAutoPilotOn(newState);
-                            toggleAutoPilot(newState, autoPilotRepo);
-                            toast.success(`AutoPilot ${newState ? 'ON' : 'OFF'}`);
-                        }}
-                        className="text-xs bg-white dark:bg-black border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 px-2 py-1 rounded"
-                    >
-                        {isAutoPilotOn ? 'Turn Off' : 'Turn On'}
-                    </button>
-                </div>
             </div>
 
-            <div className="flex flex-col gap-10">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
 
-                {/* STEP 1: SOURCE */}
-                <section className="space-y-4">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-lg">1</div>
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Context Source</h2>
-                    </div>
-
-                    <div className="bg-white dark:bg-black/30 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm space-y-6">
-
-                        {/* GitHub URL Input */}
+                {/* ------------------------------------------- */}
+                {/* LEFT PANEL: CREATOR STUDIO (MANUAL)         */}
+                {/* ------------------------------------------- */}
+                <Card
+                    className={`transition-all duration-300 cursor-pointer ${activePanel === 'creator' ? 'ring-4 ring-blue-500/10 border-blue-500 shadow-xl shadow-blue-900/10' : 'opacity-60 scale-95 hover:opacity-90 hover:scale-[0.98]'}`}
+                    onClick={() => setActivePanel('creator')}
+                >
+                    <CardHeader className="flex flex-row items-center gap-4 pb-2">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-lg">✨</div>
                         <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
-                                🔗 GitHub Repository (Optional)
-                            </label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={repoUrl}
-                                    onChange={(e) => setRepoUrl(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleFetchRepo()}
-                                    placeholder="owner/repo or https://github.com/owner/repo"
-                                    className="flex-1 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none focus:border-blue-500 transition-all"
-                                />
-                                <button
-                                    onClick={handleFetchRepo}
-                                    disabled={!repoUrl.trim() || isAnalyzing}
-                                    className="px-5 py-3 bg-gray-900 dark:bg-white text-white dark:text-black font-bold rounded-xl hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                                >
-                                    {isAnalyzing ? '⏳' : '→ Fetch'}
-                                </button>
-                            </div>
-                            <p className="text-xs text-gray-400 mt-1">Fetches recent commits and generates a summary.</p>
+                            <CardTitle>Creator Studio</CardTitle>
+                            <CardDescription>Draft a post or summarize a repo instantly.</CardDescription>
                         </div>
-
-                        {/* Divider */}
-                        <div className="flex items-center gap-4">
-                            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
-                            <span className="text-xs font-bold text-gray-400 uppercase">or</span>
-                            <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
-                        </div>
-
-                        {/* Manual Prompt */}
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">
-                                ✍️ Manual Prompt
-                            </label>
-                            <textarea
-                                value={contextInput}
-                                onChange={(e) => setContextInput(e.target.value)}
-                                placeholder="What did you build today? Describe your update, milestone, or share a code snippet..."
-                                className="w-full min-h-[100px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none focus:border-blue-500 transition-all resize-y"
-                            />
-                        </div>
-
-                        {/* Proceed Button */}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <Textarea
+                            value={manualInput}
+                            onChange={(e) => setManualInput(e.target.value)}
+                            placeholder="Write a topic, paste a code snippet, or enter a GitHub URL..."
+                            className="min-h-[140px] text-lg"
+                        />
                         <div className="flex justify-end">
-                            <button
-                                onClick={handleSetContext}
-                                disabled={!contextInput.trim()}
-                                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            <Button
+                                onClick={handleAnalyzeAndGenerate}
+                                disabled={!manualInput.trim() || isAnalyzing || isGenerating}
+                                className="bg-blue-600 hover:bg-blue-700 font-bold"
                             >
-                                <span>⚡</span> Lock Context & Proceed
-                            </button>
+                                {isAnalyzing ? 'Analyzing Repo...' : isGenerating ? 'Dreaming...' : 'Analyze & Generate ⚡'}
+                            </Button>
                         </div>
-                    </div>
-                </section>
+                    </CardContent>
 
-                {/* STEP 2: INSPIRATION */}
-                <section className="space-y-4" id="step-2">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-600 text-white font-bold text-lg">2</div>
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Refine Inspiration</h2>
-                    </div>
-
-                    <div className="bg-white dark:bg-black/30 border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
-                        <div className="flex gap-4 mb-6">
-                            <input
-                                value={viralTopic}
-                                onChange={(e) => setViralTopic(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleFetchViral()}
-                                placeholder="Topic for viral tweets (e.g. 'Next.js', 'Bootstrap')"
-                                className="flex-1 bg-gray-50 dark:bg-gray-800 border-none rounded-xl px-4 py-2 focus:ring-2 focus:ring-purple-500 outline-none"
-                            />
-                            <button
-                                onClick={() => handleFetchViral()}
-                                disabled={isFetchingViral || !viralTopic}
-                                className="text-purple-600 font-bold text-sm hover:underline disabled:opacity-50"
-                            >
-                                {isFetchingViral ? 'Searching...' : 'Refresh Vibe ⚡'}
-                            </button>
-                        </div>
-
-                        {viralTweets.length === 0 ? (
-                            <div className="text-center py-8 text-gray-400 text-sm font-medium border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-xl">
-                                Enter a topic above to find viral inspiration.
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {viralTweets.map((t) => {
-                                    const isSelected = selectedViralTweets.includes(t.text);
-                                    return (
-                                        <div
-                                            key={t.id}
-                                            onClick={() => toggleViralSelection(t.text)}
-                                            className={`p-5 rounded-2xl cursor-pointer transition-all border relative overflow-hidden group flex flex-col justify-between h-full gap-4 ${isSelected
-                                                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 shadow-md transform scale-[1.02]'
-                                                : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-purple-300 dark:hover:border-purple-700'
-                                                }`}
-                                        >
-                                            {/* Author Header */}
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center font-bold text-xs text-gray-600 dark:text-gray-300 uppercase">
-                                                        {t.author.name.substring(0, 2)}
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs font-bold text-gray-900 dark:text-gray-100">{t.author.name}</span>
-                                                        <span className="text-[10px] text-gray-500">@{t.author.username}</span>
-                                                    </div>
-                                                </div>
-                                                <span className="text-[10px] text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
-                                                    {new Date(t.createdAt).toLocaleDateString()}
-                                                </span>
-                                            </div>
-
-                                            {/* Tweet Text */}
-                                            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
-                                                "{t.text}"
-                                            </p>
-
-                                            {/* Metrics Footer */}
-                                            <div className="flex items-center gap-4 text-gray-400 text-xs border-t border-gray-100 dark:border-gray-800 pt-3 mt-auto">
-                                                <span className="flex items-center gap-1"><span className="text-pink-500">♥</span> {t.metrics.likes.toLocaleString()}</span>
-                                                <span className="flex items-center gap-1"><span>🔁</span> {t.metrics.retweets.toLocaleString()}</span>
-                                                <span className="flex items-center gap-1"><span>💬</span> {t.metrics.replies.toLocaleString()}</span>
-                                            </div>
-
-                                            {isSelected && (
-                                                <div className="absolute top-2 right-2 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center shadow-lg">
-                                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        )}
-                        <p className="text-right text-xs text-gray-400 mt-2 font-medium">
-                            {selectedViralTweets.length} style(s) selected
-                        </p>
-                    </div>
-                </section>
-
-                {/* STEP 3: CREATE & PUBLISH */}
-                <section className="space-y-4">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-pink-500 text-white font-bold text-lg">3</div>
-                        <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Create & Publish</h2>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-gray-900 to-black rounded-2xl p-1 shadow-xl">
-                        {isGenerating ? (
-                            <button
-                                onClick={stopGeneration}
-                                className="w-full py-4 bg-red-600 hover:bg-red-700 text-white font-black text-lg uppercase tracking-widest rounded-xl transition-all animate-pulse"
-                            >
-                                ⏹ Stop Dreaming
-                            </button>
-                        ) : (
-                            <button
-                                onClick={handleGenerate}
-                                disabled={!contextInput.trim()}
-                                className="w-full py-4 bg-white dark:bg-gray-100 text-black font-black text-lg uppercase tracking-widest rounded-xl hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                ✨ Generate Magic
-                            </button>
-                        )}
-                    </div>
-
-                    {/* RESULTS AREA */}
-                    {generatedOptions && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-bottom-10 duration-700 mt-8">
-                            {/* Hook Card */}
-                            <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800/30 rounded-2xl p-6 flex flex-col hover:border-orange-200 dark:hover:border-orange-800 transition-colors">
-                                <div className="flex justify-between items-center mb-4">
-                                    <span className="text-xs font-bold uppercase tracking-wider text-orange-600 bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded">The Hook</span>
+                    {/* Optional: Inspiration Panel */}
+                    {viralTopic && (
+                        <CardFooter className="flex-col items-start pt-0">
+                            <div className="w-full bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800 rounded-xl p-4 animate-in fade-in">
+                                <div className="flex justify-between items-center mb-3">
+                                    <h3 className="font-bold text-purple-600 dark:text-purple-400 text-xs uppercase tracking-wide">Vibe Match: {viralTopic}</h3>
+                                    <Button variant="ghost" size="sm" onClick={() => handleFetchViral()} disabled={isFetchingViral} className="h-6 text-xs text-purple-500">Refresh</Button>
                                 </div>
-                                <p className="text-xl font-black text-gray-900 dark:text-gray-100 leading-tight mb-6">
+                                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                    {viralTweets.map(t => (
+                                        <div key={t.id}
+                                            onClick={() => toggleViralSelection(t.text)}
+                                            className={`min-w-[200px] p-3 rounded-lg border cursor-pointer transition-all text-xs bg-white dark:bg-black/50 ${selectedViralTweets.includes(t.text) ? 'border-purple-500 ring-1 ring-purple-500' : 'border-gray-200 dark:border-gray-700'}`}
+                                        >
+                                            <p className="line-clamp-3">"{t.text}"</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </CardFooter>
+                    )}
+                </Card>
+
+
+                {/* ------------------------------------------- */}
+                {/* RIGHT PANEL: AUTOPILOT CONTROL (BOT)        */}
+                {/* ------------------------------------------- */}
+                <Card
+                    className={`transition-all duration-300 cursor-pointer relative overflow-hidden ${activePanel === 'autopilot' ? 'ring-4 ring-green-500/10 border-green-500 shadow-xl shadow-green-900/10' : 'opacity-60 scale-95 hover:opacity-90 hover:scale-[0.98]'}`}
+                    onClick={() => setActivePanel('autopilot')}
+                >
+                    {isAutoPilotOn && (
+                        <div className="absolute top-4 right-4">
+                            <Badge variant="outline" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800 animate-pulse gap-2">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                </span>
+                                Live Monitoring
+                            </Badge>
+                        </div>
+                    )}
+
+                    <CardHeader className="flex flex-row items-center gap-4 pb-2">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-lg transition-colors ${isAutoPilotOn ? 'bg-green-600' : 'bg-gray-400'}`}>🤖</div>
+                        <div>
+                            <CardTitle>Autopilot Control</CardTitle>
+                            <CardDescription>Automatically monitors a repo.</CardDescription>
+                        </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wide text-gray-500">Target Repository</Label>
+                            <Input
+                                value={autoPilotRepo}
+                                onChange={(e) => setAutoPilotRepo(e.target.value)}
+                                placeholder="owner/repo"
+                                className="font-mono"
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between bg-secondary/20 p-4 rounded-xl border border-secondary">
+                            <div className="space-y-0.5">
+                                <div className="text-sm font-bold">Master Switch</div>
+                                <div className="text-xs text-muted-foreground">Enable background monitoring</div>
+                            </div>
+                            <Switch
+                                checked={isAutoPilotOn}
+                                onCheckedChange={(checked) => {
+                                    setIsAutoPilotOn(checked);
+                                    if (checked) setAutoPilotStatus("Active (Monitoring)");
+                                    toggleAutoPilot(checked, autoPilotRepo);
+                                    toast.success(`AutoPilot ${checked ? 'ON' : 'OFF'}`);
+                                }}
+                            />
+                        </div>
+
+                        <div className="bg-muted/50 rounded-xl p-4 space-y-3 border border-border/50">
+                            <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Status</span>
+                                <Badge variant={isAutoPilotOn ? 'default' : 'secondary'} className="font-mono">
+                                    {autoPilotStatus}
+                                </Badge>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground">Last Checked</span>
+                                <span className="font-mono">{lastChecked}</span>
+                            </div>
+                            <div className="pt-2">
+                                <Button
+                                    variant="outline"
+                                    className="w-full text-xs font-bold uppercase"
+                                    onClick={handleForceScan}
+                                >
+                                    Force Scan Now
+                                </Button>
+                            </div>
+                        </div>
+
+                    </CardContent>
+                </Card>
+
+            </div>
+
+            {/* ------------------------------------------- */}
+            {/* OUTPUT AREA (GENERATED CARDS)               */}
+            {/* ------------------------------------------- */}
+
+            {generatedOptions && (
+                <div className="animate-in slide-in-from-bottom-10 fade-in duration-700 pt-8 border-t border-gray-100 dark:border-gray-800/50">
+                    <h3 className="text-2xl font-bold text-center mb-8 bg-gradient-to-r from-gray-900 to-gray-500 bg-clip-text text-transparent">Generated Drafts</h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Hook Card */}
+                        <Card className="bg-orange-50/50 dark:bg-orange-900/10 border-orange-100 dark:border-orange-900/20 hover:border-orange-300 transition-colors">
+                            <CardHeader>
+                                <Badge className="w-fit bg-orange-100 text-orange-700 hover:bg-orange-100 border-none">The Hook</Badge>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-xl font-black leading-tight">
                                     {generatedOptions.hook}
                                 </p>
-                                <div className="mt-auto">
-                                    <button
-                                        onClick={() => handlePublish('hook')}
-                                        disabled={!!publishingType}
-                                        className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50"
-                                    >
-                                        {publishingType === 'hook' ? 'Posting...' : 'Post Hook'}
-                                    </button>
-                                </div>
-                            </div>
+                            </CardContent>
+                            <CardFooter>
+                                <Button
+                                    className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold"
+                                    onClick={() => handlePublish('hook')}
+                                    disabled={!!publishingType}
+                                >
+                                    {publishingType === 'hook' ? 'Posting...' : 'Post Hook'}
+                                </Button>
+                            </CardFooter>
+                        </Card>
 
-                            {/* Value Card */}
-                            <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-2xl p-6 flex flex-col hover:border-blue-200 dark:hover:border-blue-800 transition-colors">
-                                <div className="flex justify-between items-center mb-4">
-                                    <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded">The Value</span>
-                                </div>
-                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed mb-6">
+                        {/* Value Card */}
+                        <Card className="bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/20 hover:border-blue-300 transition-colors">
+                            <CardHeader>
+                                <Badge className="w-fit bg-blue-100 text-blue-700 hover:bg-blue-100 border-none">The Value</Badge>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-sm font-medium whitespace-pre-line leading-relaxed">
                                     {generatedOptions.value}
                                 </p>
-                                <div className="mt-auto">
-                                    <button
-                                        onClick={() => handlePublish('value')}
-                                        disabled={!!publishingType}
-                                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-600/20 transition-all disabled:opacity-50"
-                                    >
-                                        {publishingType === 'value' ? 'Posting...' : 'Post Value'}
-                                    </button>
-                                </div>
-                            </div>
+                            </CardContent>
+                            <CardFooter>
+                                <Button
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                                    onClick={() => handlePublish('value')}
+                                    disabled={!!publishingType}
+                                >
+                                    {publishingType === 'value' ? 'Posting...' : 'Post Value'}
+                                </Button>
+                            </CardFooter>
+                        </Card>
 
-                            {/* Thread Card (Full Width) */}
-                            <div className="bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800/30 rounded-2xl p-6 md:col-span-2 hover:border-purple-200 dark:hover:border-purple-800 transition-colors">
-                                <div className="flex justify-between items-center mb-6">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold uppercase tracking-wider text-purple-600 bg-purple-100 dark:bg-purple-900/30 px-2 py-1 rounded">The Thread</span>
-                                    </div>
-                                </div>
+                        {/* Thread Card (Full Width) */}
+                        <Card className="md:col-span-2 bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/20 hover:border-purple-300 transition-colors">
+                            <CardHeader>
+                                <Badge className="w-fit bg-purple-100 text-purple-700 hover:bg-purple-100 border-none">The Thread</Badge>
+                            </CardHeader>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     {generatedOptions.thread.map((t, i) => (
                                         <div key={i} className="flex flex-col gap-3 group">
-                                            <div className="bg-white dark:bg-black/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800/20 h-full">
-                                                <div className="flex gap-2 text-sm text-gray-700 dark:text-gray-300 mb-3">
+                                            <div className="bg-background/80 p-4 rounded-xl border h-full">
+                                                <div className="flex gap-2 text-sm mb-3">
                                                     <span className="text-purple-500 font-mono font-bold">{i + 1}/</span>
                                                     <p>{t}</p>
                                                 </div>
 
                                                 {/* Image Preview */}
                                                 <div
-                                                    className="w-full aspect-video bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden relative cursor-pointer group-hover:ring-2 ring-purple-500/50 transition-all pb-2/3"
+                                                    className="w-full aspect-video bg-muted rounded-lg overflow-hidden relative cursor-pointer group-hover:ring-2 ring-purple-500/50 transition-all pb-2/3"
                                                     onClick={() => previewImages[i] && setSelectedImage(previewImages[i])}
                                                 >
                                                     {previewImages[i] ? (
@@ -554,7 +543,7 @@ export default function TweetGenerator() {
                                                             <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
                                                         </div>
                                                     ) : (
-                                                        <div className="absolute inset-0 flex items-center justify-center text-xs text-gray-400 font-medium">
+                                                        <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground font-medium">
                                                             Generating visual...
                                                         </div>
                                                     )}
@@ -563,42 +552,36 @@ export default function TweetGenerator() {
                                         </div>
                                     ))}
                                 </div>
+                            </CardContent>
 
-                                <button
+                            <CardFooter>
+                                <Button
+                                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold"
                                     onClick={() => handlePublish('thread')}
                                     disabled={!!publishingType}
-                                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-purple-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
                                     <span>🧵</span> {publishingType === 'thread' ? 'Weaving Thread...' : 'Publish Thread Sequence'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </section>
-            </div>
-            {/* Lightbox Modal */}
-            {selectedImage && (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
-                    onClick={() => setSelectedImage(null)}
-                >
-                    <div className="relative max-w-5xl w-full" onClick={e => e.stopPropagation()}>
-                        <img
-                            src={selectedImage}
-                            alt="Full size preview"
-                            className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl"
-                        />
-                        <button
-                            onClick={() => setSelectedImage(null)}
-                            className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors bg-white/10 hover:bg-white/20 p-2 rounded-full backdrop-blur-sm"
-                        >
-                            <svg className="w-6 h-6 relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
+                                </Button>
+                            </CardFooter>
+                        </Card>
                     </div>
                 </div>
             )}
+
+            {/* Lightbox Modal (Using Dialog) */}
+            <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
+                <DialogContent className="max-w-5xl p-0 overflow-hidden bg-transparent border-none shadow-none">
+                    {selectedImage && (
+                        <div className="relative w-full h-full flex items-center justify-center" onClick={() => setSelectedImage(null)}>
+                            <img
+                                src={selectedImage}
+                                alt="Full size preview"
+                                className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                            />
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
