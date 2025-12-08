@@ -101,12 +101,12 @@ function calculateSignificance(commits: string[]): number {
 
 function getPostTypeForTime(): { allowed: boolean; type: 'hook' | 'value' | 'thread'; tone: string } {
     const now = new Date();
-    const pstDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
-    const hour = pstDate.getHours();
+    const cstDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" }));
+    const hour = cstDate.getHours();
 
-    if (hour >= 9 && hour < 11) return { allowed: true, type: 'hook', tone: "High energy, hype, 'Shipping mode ON'" };
-    if (hour >= 13 && hour < 15) return { allowed: true, type: 'value', tone: "Insightful, technical deep dive" };
-    if (hour >= 17 && hour < 19) return { allowed: true, type: 'thread', tone: "Reflective, summary of progress" };
+    if (hour >= 9 && hour < 13) return { allowed: true, type: 'hook', tone: "High energy, hype, 'Shipping mode ON'" };
+    if (hour >= 11 && hour < 16) return { allowed: true, type: 'value', tone: "Insightful, technical deep dive" };
+    if (hour >= 16 && hour < 20) return { allowed: true, type: 'thread', tone: "Reflective, summary of progress" };
 
     return { allowed: false, type: 'value', tone: "Neutral" };
 }
