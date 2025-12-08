@@ -15,8 +15,12 @@ export async function getRemoteCommits(owner: string, repo: string, limit: numbe
         const headers: HeadersInit = {
             'Accept': 'application/vnd.github.v3+json',
             'User-Agent': 'Antigravity-Agent'
-            // 'Authorization': `token ${process.env.GITHUB_TOKEN}` // Uncomment if you have a token for higher rate limits
         };
+
+        // Add GitHub token if available for private repo access
+        if (process.env.GITHUB_TOKEN) {
+            headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+        }
 
         const response = await fetch(url, {
             headers,
@@ -47,22 +51,41 @@ export async function getRemoteCommits(owner: string, repo: string, limit: numbe
 export async function getLatestRemoteCommitHash(owner: string, repo: string): Promise<string | null> {
     try {
         const url = `https://api.github.com/repos/${owner}/${repo}/commits?per_page=1`;
+
+        const headers: HeadersInit = {
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'Antigravity-Agent'
+        };
+
+        // Add GitHub token if available
+        if (process.env.GITHUB_TOKEN) {
+            headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+            console.log('🔑 Using GitHub token for authentication');
+        } else {
+            console.log('⚠️  No GitHub token found - using unauthenticated access');
+        }
+
         const res = await fetch(url, {
-            headers: {
-                'Accept': 'application/vnd.github.v3+json',
-                'User-Agent': 'Antigravity-Agent'
-            },
+            headers,
             cache: 'no-store' // Don't cache the check for latest hash
         });
 
-        if (!res.ok) return null;
+        console.log(`GitHub API Response: ${res.status} ${res.statusText}`);
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.error(`❌ GitHub API Error: ${errorText}`);
+            return null;
+        }
 
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
+            console.log('✅ Successfully fetched latest commit');
             return data[0].sha;
         }
         return null;
     } catch (error) {
+        console.error('❌ fetch() error:', error);
         return null;
     }
 }
@@ -145,9 +168,18 @@ export async function getRepoFileContent(
     try {
         console.log(`📥 Fetching file: ${filePath}`);
 
+        const headers: HeadersInit = {
+            'User-Agent': 'Antigravity-Agent'
+        };
+
+        // Add GitHub token if available
+        if (process.env.GITHUB_TOKEN) {
+            headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+        }
+
         const response = await fetch(rawUrl, {
             signal: AbortSignal.timeout(10000),
-            headers: { 'User-Agent': 'Antigravity-Agent' }
+            headers
         });
 
         if (!response.ok) {

@@ -20,6 +20,7 @@ export interface AutoPilotLog {
     action_type: 'check' | 'generate' | 'post_success' | 'post_fail' | 'skip'
     content: {
         commits?: string[]
+        commit?: string
         viral_refs?: string[]
         generated_hook?: string
         generated_value?: string
@@ -27,6 +28,7 @@ export interface AutoPilotLog {
         tweet_id?: string
         error?: string
         reason?: string
+        backfilled?: boolean
     }
     status: string
 }

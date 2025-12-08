@@ -8,7 +8,7 @@ import path from 'path';
 
 // Config
 const STATE_FILE = path.join(process.cwd(), '.autopilot.json');
-const DAILY_POST_LIMIT = 15;
+const DAILY_POST_LIMIT = 17;
 
 export interface AutoPilotState {
     lastCommitHash: string;
@@ -18,6 +18,9 @@ export interface AutoPilotState {
     monitoringMode?: 'local' | 'remote';
     postsToday: number;
     lastPostDate: string;
+    postedCommits?: string[]; // Track commits we've already posted about
+    lastPostContent?: string; // Store last 200 chars of last post for continuity
+    lastPostTimestamp?: number; // When the last post was made
 }
 
 // ------------------------------------------------------------------
@@ -34,7 +37,10 @@ export async function getAutoPilotState(): Promise<AutoPilotState> {
             isActive: false,
             monitoringMode: 'local',
             postsToday: 0,
-            lastPostDate: ''
+            lastPostDate: '',
+            postedCommits: [],
+            lastPostContent: '',
+            lastPostTimestamp: 0
         };
     }
 }
@@ -179,8 +185,21 @@ export async function checkAndRunAutoPilot() {
         logs.push(`Found ${newCommits.length} new commits.`);
     }
 
-    // No new commits
+    // No new commits - Try backfill from history
     if (currentHash === state.lastCommitHash || newCommits.length === 0) {
+        // Check if we're under daily quota - if so, backfill from history
+        const today = new Date().toISOString().split('T')[0];
+        if (state.lastPostDate !== today) {
+            state.postsToday = 0;
+            state.lastPostDate = today;
+        }
+
+        const remainingPosts = DAILY_POST_LIMIT - state.postsToday;
+        if (remainingPosts > 0) {
+            logs.push(`No new commits, but ${remainingPosts} posts remaining today. Attempting backfill...`);
+            return await backfillHistoricalCommits(state, remainingPosts, logs, repoName);
+        }
+
         await logAutoPilotAction({
             repo_name: repoName,
             commit_hash: currentHash,
@@ -275,8 +294,12 @@ export async function checkAndRunAutoPilot() {
     }
 
     // -----------------------------------------
-    // STEP 7: Generate Content
+    // STEP 7: Generate Content with Narrative Continuity
     // -----------------------------------------
+    const previousContext = state.lastPostContent
+        ? `\n**Previous Post (for story continuity):**\n${state.lastPostContent}\n`
+        : '';
+
     const prompt = `
     You are the dev-marketing engine for a developer's "Build in Public" Twitter account.
     
@@ -286,14 +309,17 @@ export async function checkAndRunAutoPilot() {
     **Project Context:**
     ${contextSummary}
     ${viralContext}
+    ${previousContext}
     
     **Style:** ${schedule.tone}
     **Format:** ${schedule.type}
     
     **Rules:**
     1. Don't list commits verbatim. Synthesize into a narrative.
-    2. Focus on user benefit or cool tech factor.
-    3. Only use #BuildInPublic hashtag.
+    2. This is the next chapter in the development timeline - build on the previous post's story.
+    3. Frame as progression: "Now that X works, tackling Y" or "After building X, next step is Y".
+    4. Focus on user benefit or cool tech factor.
+    5. Only use #BuildInPublic hashtag.
     `;
 
     console.log(`🧠 AutoPilot: Generating ${schedule.type} content...`);
@@ -336,9 +362,27 @@ export async function checkAndRunAutoPilot() {
     if (schedule.type === 'hook') contentToPost = options.hook;
     if (schedule.type === 'thread') contentToPost = options.thread;
 
-    // For threads, try to use real code screenshots instead of AI images
-    let imagePromptsToUse = options.imagePrompts;
-    if (schedule.type === 'thread' && state.monitoringMode === 'remote' && state.monitoredRepo) {
+    // Check if this is about AutoPilot feature
+    const isAutoPilotFeature = importantCommits.some(msg =>
+        msg.toLowerCase().includes('autopilot') ||
+        msg.toLowerCase().includes('auto-pilot') ||
+        msg.toLowerCase().includes('timeline') && msg.toLowerCase().includes('continuity')
+    );
+
+    // For threads, try to use real code screenshots or feature diagrams
+    let imagePromptsToUse: string[] = options.imagePrompts;
+
+    if (isAutoPilotFeature && schedule.type === 'thread') {
+        // Use the AutoPilot timeline flowchart for AutoPilot-related posts
+        const flowchartPath = path.join(process.cwd(), 'public', 'diagrams', 'autopilot-timeline-flow.png');
+        try {
+            await fs.access(flowchartPath);
+            console.log('📊 Using AutoPilot timeline flowchart!');
+            imagePromptsToUse = [`DIAGRAM:${flowchartPath}`];
+        } catch {
+            console.log('⚠️ AutoPilot flowchart not found, using generated images');
+        }
+    } else if (schedule.type === 'thread' && state.monitoringMode === 'remote' && state.monitoredRepo) {
         const [owner, repo] = state.monitoredRepo.split('/');
         const { getRepoFileContent } = await import('./github-api');
 
@@ -361,6 +405,19 @@ export async function checkAndRunAutoPilot() {
         state.lastRunTime = Date.now();
         state.postsToday = (state.postsToday || 0) + 1;
         state.lastPostDate = today;
+        // Track this commit as posted
+        if (!state.postedCommits) state.postedCommits = [];
+        state.postedCommits.push(currentHash);
+        // Keep only last 100 commits to avoid bloat
+        if (state.postedCommits.length > 100) {
+            state.postedCommits = state.postedCommits.slice(-100);
+        }
+        // Store content preview for narrative continuity
+        const contentPreview = Array.isArray(contentToPost)
+            ? contentToPost[0].substring(0, 200)
+            : contentToPost.substring(0, 200);
+        state.lastPostContent = contentPreview;
+        state.lastPostTimestamp = Date.now();
         await saveState(state);
 
 
@@ -404,5 +461,169 @@ export async function checkAndRunAutoPilot() {
 
         logs.push(`Post failed: ${postRes.error}`);
         return { success: false, error: 'post_failed', details: postRes.error, logs, foundCommits: importantCommits };
+    }
+}
+
+// ------------------------------------------------------------------
+// BACKFILL: Post about historical commits when activity is sparse
+// ------------------------------------------------------------------
+async function backfillHistoricalCommits(
+    state: AutoPilotState,
+    remainingPosts: number,
+    logs: string[],
+    repoName: string
+) {
+    logs.push(`🔄 Backfill mode: Looking for historical commits to post about...`);
+
+    // Initialize postedCommits if needed
+    if (!state.postedCommits) state.postedCommits = [];
+
+    let historicalCommits: any[] = [];
+
+    // Fetch historical commits (last 50)
+    if (state.monitoringMode === 'remote' && state.monitoredRepo) {
+        const [owner, repo] = state.monitoredRepo.split('/');
+        historicalCommits = await getRemoteCommits(owner, repo, 50);
+    } else {
+        // For local mode, we need to get commit history
+        const { execSync } = await import('child_process');
+        try {
+            const output = execSync('git log -50 --pretty=format:"%H|%s"', { encoding: 'utf8' });
+            historicalCommits = output.split('\n').map(line => {
+                const [hash, message] = line.split('|');
+                return { sha: hash, message };
+            }).filter(c => c.sha && c.message);
+        } catch (error) {
+            logs.push('Failed to fetch local git history');
+            return { success: false, error: 'no_git_history', logs };
+        }
+    }
+
+    // Filter out already-posted commits
+    const unpostedCommits = historicalCommits.filter(c => {
+        const sha = c.sha || c.commit?.sha;
+        return sha && !state.postedCommits!.includes(sha);
+    });
+
+    if (unpostedCommits.length === 0) {
+        logs.push('No unposted historical commits found.');
+        return { success: true, changes: 0, message: 'No backfill available', logs };
+    }
+
+    logs.push(`Found ${unpostedCommits.length} unposted commits in history.`);
+
+    // Filter for interesting commits only
+    const interestingCommits = unpostedCommits.filter(c => {
+        const msg = (c.message || c.commit?.message || '').toLowerCase();
+        return !msg.startsWith('chore:') &&
+            !msg.startsWith('wip:') &&
+            !msg.startsWith('merge') &&
+            !msg.includes('typo') &&
+            !msg.includes('formatting');
+    });
+
+    if (interestingCommits.length === 0) {
+        logs.push('No interesting historical commits to post about.');
+        return { success: true, changes: 0, message: 'No interesting backfill', logs };
+    }
+
+    // TIMELINE: Select OLDEST unposted commit for chronological progression
+    // Commits are ordered newest->oldest, so take the last one
+    const commitToPost = interestingCommits[interestingCommits.length - 1];
+    const commitHash = commitToPost.sha || commitToPost.commit?.sha;
+    const commitMessage = commitToPost.message || commitToPost.commit?.message;
+
+    logs.push(`Selected oldest unposted commit: ${commitHash.substring(0, 7)} - ${commitMessage}`);
+
+    // Get context summary
+    let contextSummary = '';
+    if (state.monitoringMode === 'remote' && state.monitoredRepo) {
+        const summaryRes = await fetchAndSummarizeRepo(state.monitoredRepo);
+        contextSummary = (summaryRes.success && summaryRes.summary) ? summaryRes.summary : "No summary available.";
+    } else {
+        contextSummary = await getProjectContextSummary();
+    }
+
+    // Generate content
+    const schedule = getPostTypeForTime();
+    if (!schedule.allowed) {
+        logs.push(`Outside posting window. Skipping backfill.`);
+        return { success: true, changes: 0, message: 'Outside posting hours', logs };
+    }
+
+    const previousContext = state.lastPostContent
+        ? `\n**Previous Post (for story continuity):**\n${state.lastPostContent}\n`
+        : '';
+
+    const prompt = `
+    You are the dev-marketing engine for a developer's "Build in Public" Twitter account.
+    
+    **Git Commit (Next in Timeline):**
+    - ${commitMessage}
+    
+    **Project Context:**
+    ${contextSummary}
+    ${previousContext}
+    
+    **Style:** ${schedule.tone}
+    **Format:** ${schedule.type}
+    
+    **Rules:**
+    1. This is the NEXT step chronologically in the development timeline.
+    2. Build on the previous post's narrative to create story continuity.
+    3. Frame as progression: "Now that X is done, working on Y" or "After building X, next came Y".
+    4. Don't mention dates - focus on the development journey.
+    5. Only use #BuildInPublic hashtag.
+    `;
+
+    logs.push(`Generating backfill ${schedule.type} content...`);
+    const optionsRes = await generateOptionsAction(prompt);
+
+    if (!optionsRes.success || !optionsRes.data) {
+        logs.push('Backfill generation failed.');
+        return { success: false, error: 'gen_failed', logs };
+    }
+
+    const options = optionsRes.data;
+    let contentToPost: string | string[] = options.value;
+    if (schedule.type === 'hook') contentToPost = options.hook;
+    if (schedule.type === 'thread') contentToPost = options.thread;
+
+    logs.push(`Posting backfill ${schedule.type}...`);
+    const postRes = await postCreativeTweet(contentToPost, schedule.type, options.imagePrompts);
+
+    if (postRes.success) {
+        state.lastRunTime = Date.now();
+        state.postsToday = (state.postsToday || 0) + 1;
+        // Track this commit as posted
+        state.postedCommits!.push(commitHash);
+        if (state.postedCommits!.length > 100) {
+            state.postedCommits = state.postedCommits!.slice(-100);
+        }
+        // Store content preview for narrative continuity
+        const contentPreview = Array.isArray(contentToPost)
+            ? contentToPost[0].substring(0, 200)
+            : contentToPost.substring(0, 200);
+        state.lastPostContent = contentPreview;
+        state.lastPostTimestamp = Date.now();
+        await saveState(state);
+
+        await logAutoPilotAction({
+            repo_name: repoName,
+            commit_hash: commitHash,
+            action_type: 'post_success',
+            content: {
+                commit: commitMessage,
+                [`generated_${schedule.type}`]: contentToPost,
+                backfilled: true // Flag to distinguish backfill posts
+            },
+            status: 'published'
+        });
+
+        logs.push(`✅ Backfill posted successfully! (${state.postsToday}/${DAILY_POST_LIMIT} today)`);
+        return { success: true, posted: true, backfilled: true, changes: 1, type: schedule.type, logs };
+    } else {
+        logs.push(`Backfill post failed: ${postRes.error}`);
+        return { success: false, error: 'post_failed', details: postRes.error, logs };
     }
 }

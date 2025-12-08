@@ -2,6 +2,7 @@ import { generateTweetVariations } from "@/lib/ai";
 // import { generateImage } from "@/lib/image-gen"; // DISABLED: Using code screenshots instead
 import { generateCodeScreenshot } from "@/lib/code-screenshot";
 import { postThread, postToTwitter, uploadMedia } from "@/lib/twitter";
+import fs from 'fs/promises';
 
 // Action to generate text options
 export async function generateOptionsAction(input: string) {
@@ -47,19 +48,30 @@ export async function postCreativeTweet(
 ) {
 
     try {
-        // Helper to generate and upload CODE SCREENSHOTS ONLY
+        // Helper to generate and upload CODE SCREENSHOTS or DIAGRAM files
         // Gemini image generation is DISABLED
         const uploadPrompt = async (p: string) => {
             let imgBuffer: Buffer | null = null;
 
+            // Check if this is a diagram file request (starts with "DIAGRAM:")
+            if (p.startsWith('DIAGRAM:')) {
+                const filepath = p.substring(8).trim();
+                try {
+                    imgBuffer = await fs.readFile(filepath);
+                    console.log('📊 Loaded diagram from:', filepath);
+                } catch (error) {
+                    console.error('❌ Failed to load diagram:', filepath, error);
+                    return undefined;
+                }
+            }
             // Check if this is a code screenshot request (starts with "CODE:")
-            if (p.startsWith('CODE:')) {
+            else if (p.startsWith('CODE:')) {
                 const code = p.substring(5).trim();
                 imgBuffer = await generateCodeScreenshot({ code, theme: 'dracula' });
             } else {
                 // DISABLED: Gemini image generation
                 // imgBuffer = await generateImage(p);
-                console.log('⚠️ Skipping non-CODE image prompt (Imagen disabled):', p.substring(0, 50) + '...');
+                console.log('⚠️ Skipping non-CODE/DIAGRAM image prompt (Imagen disabled):', p.substring(0, 50) + '...');
                 return undefined;
             }
 

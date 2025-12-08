@@ -5,7 +5,7 @@ import path from 'path';
 // Load environment variables from .env.local BEFORE importing app code
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const CHECK_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
 // ====================================
 // GRACEFUL SHUTDOWN - Prevent orphaned processes
