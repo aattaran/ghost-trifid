@@ -512,7 +512,7 @@ async function backfillHistoricalCommits(
     if (unpostedCommits.length === 0) {
         logs.push('No unposted historical commits found.');
         // CODE-BASED CONTENT: Try posting about code features instead
-        // TO DISABLE: Comment out or remove the next 3 lines
+        // TO DISABLE: Comment out the next 3 lines
         logs.push('🔄 Trying code-based content generation...');
         const { postAboutCodeFeature } = await import('./code-feature-fallback');
         return await postAboutCodeFeature(state, logs, repoName);
