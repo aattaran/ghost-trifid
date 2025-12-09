@@ -301,9 +301,10 @@ export async function checkAndRunAutoPilot() {
         : '';
 
     const prompt = `
-    You are the dev-marketing engine for a developer's "Build in Public" Twitter account.
+    You're a software engineer sharing your development journey on Twitter.
+    Write like you're texting a fellow developer friend - casual but technical.
     
-    **Git Commits:**
+    **Recent Work:**
     ${importantCommits.map(c => `- ${c}`).join('\n')}
     
     **Project Context:**
@@ -311,15 +312,18 @@ export async function checkAndRunAutoPilot() {
     ${viralContext}
     ${previousContext}
     
-    **Style:** ${schedule.tone}
+    **Tone:** ${schedule.tone}
     **Format:** ${schedule.type}
     
-    **Rules:**
-    1. Don't list commits verbatim. Synthesize into a narrative.
-    2. This is the next chapter in the development timeline - build on the previous post's story.
-    3. Frame as progression: "Now that X works, tackling Y" or "After building X, next step is Y".
-    4. Focus on user benefit or cool tech factor.
-    5. Only use #BuildInPublic hashtag.
+    **Voice Guidelines:**
+    - Sound human, not a marketing bot
+    - Use technical terms naturally (no explaining basics)
+    - Be honest about challenges, not just wins
+    - Skip the hype - just facts about what you built
+    - Frame as: "Just shipped X" or "Spent today refactoring Y" or "Finally got Z working"
+    - Only use #BuildInPublic hashtag (no other hashtags)
+    - No emojis unless genuinely excited
+    - Keep it real: "This was harder than expected" > "Crushing it!"
     `;
 
     console.log(`🧠 AutoPilot: Generating ${schedule.type} content...`);
@@ -556,24 +560,28 @@ async function backfillHistoricalCommits(
         : '';
 
     const prompt = `
-    You are the dev-marketing engine for a developer's "Build in Public" Twitter account.
+    You're a software engineer sharing your development journey on Twitter.
+    Write like you're texting a fellow developer friend - casual but technical.
     
-    **Git Commit (Next in Timeline):**
+    **What You Built (chronologically next):**
     - ${commitMessage}
     
     **Project Context:**
     ${contextSummary}
     ${previousContext}
     
-    **Style:** ${schedule.tone}
+    **Tone:** ${schedule.tone}
     **Format:** ${schedule.type}
     
-    **Rules:**
-    1. This is the NEXT step chronologically in the development timeline.
-    2. Build on the previous post's narrative to create story continuity.
-    3. Frame as progression: "Now that X is done, working on Y" or "After building X, next came Y".
-    4. Don't mention dates - focus on the development journey.
-    5. Only use #BuildInPublic hashtag.
+    **Voice Guidelines:**
+    - This is the next step in the timeline - connect it to previous work naturally
+    - Sound human: "After getting auth working, I moved on to..." not "Exciting progress on..."
+    - Use technical terms without explaining (fellow engineers get it)
+    - Be authentic: mention if something was tricky or took longer than expected
+    - Skip marketing speak - just share what you actually did
+    - Frame as: "Built X today" or "Finally cracked Y" or "Refactored Z because..."
+    - Only #BuildInPublic hashtag
+    - No forced enthusiasm - genuine reactions only
     `;
 
     logs.push(`Generating backfill ${schedule.type} content...`);

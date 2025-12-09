@@ -211,3 +211,36 @@ export async function getRepoFileContent(
     }
 }
 
+/**
+ * Simplified version that returns raw content as string
+ */
+export async function getRepoFileContentRaw(
+    owner: string,
+    repo: string,
+    filePath: string,
+    branch: string = 'main'
+): Promise<string | null> {
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
+
+    try {
+        const headers: HeadersInit = {
+            'User-Agent': 'Antigravity-Agent'
+        };
+
+        if (process.env.GITHUB_TOKEN) {
+            headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+        }
+
+        const response = await fetch(rawUrl, {
+            signal: AbortSignal.timeout(10000),
+            headers
+        });
+
+        if (!response.ok) return null;
+        return await response.text();
+
+    } catch (error) {
+        return null;
+    }
+}
+
