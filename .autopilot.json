@@ -1,15 +1,17 @@
 {
-  "lastCommitHash": "6a172793067a42d7409c3f356c57393de9780b1b",
-  "lastRunTime": 1765226621486,
+  "lastCommitHash": "e8f03a12b77dc81ada178a017e88d33cba03fd0a",
+  "lastRunTime": 1765234418297,
   "isActive": true,
   "monitoredRepo": "aattaran/tiktok",
   "monitoringMode": "remote",
-  "postsToday": 3,
+  "postsToday": 5,
   "lastPostDate": "2025-12-08",
   "postedCommits": [
     "6a172793067a42d7409c3f356c57393de9780b1b",
-    "c0f6d899d1b2e6b82a524133c65530e6fa9fcecb"
+    "c0f6d899d1b2e6b82a524133c65530e6fa9fcecb",
+    "6df115047916846e061c450beb9233f6ccee950d",
+    "e8f03a12b77dc81ada178a017e88d33cba03fd0a"
   ],
-  "lastPostContent": "Building on our robust TikTok & Google auth + API client, we've now integrated the TikTok Shop API. This enables powerful promotion duplication directly within the new Chrome extension. Streamlining c",
-  "lastPostTimestamp": 1765226621486
+  "lastPostContent": "Building on our Google & TikTok auth, we've leveled up with TikTok Shop API integration! This unlocks seamless promo duplication for merchants. Here's the core logic 👇 for setting up the API client &",
+  "lastPostTimestamp": 1765234418297
 }
