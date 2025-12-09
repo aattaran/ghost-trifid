@@ -511,7 +511,11 @@ async function backfillHistoricalCommits(
 
     if (unpostedCommits.length === 0) {
         logs.push('No unposted historical commits found.');
-        return { success: true, changes: 0, message: 'No backfill available', logs };
+        // CODE-BASED CONTENT: Try posting about code features instead
+        // TO DISABLE: Comment out or remove the next 3 lines
+        logs.push('🔄 Trying code-based content generation...');
+        const { postAboutCodeFeature } = await import('./code-feature-fallback');
+        return await postAboutCodeFeature(state, logs, repoName);
     }
 
     logs.push(`Found ${unpostedCommits.length} unposted commits in history.`);
