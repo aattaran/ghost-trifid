@@ -509,19 +509,20 @@ export async function checkAndRunAutoPilot() {
         logs.push(`Successfully posted ${schedule.type}!`);
         return { success: true, posted: true, changes: importantCommits.length, type: schedule.type, logs, foundCommits: importantCommits, summary: contextSummary };
     } else {
+        const errorMsg = typeof postRes.error === 'string' ? postRes.error : JSON.stringify(postRes.error);
         await logAutoPilotAction({
             repo_name: repoName,
             commit_hash: currentHash,
             action_type: 'post_fail',
             content: {
                 commits: importantCommits,
-                error: postRes.error
+                error: errorMsg
             },
             status: 'failed'
         });
 
-        logs.push(`Post failed: ${postRes.error}`);
-        return { success: false, error: 'post_failed', details: postRes.error, logs, foundCommits: importantCommits };
+        logs.push(`Post failed: ${errorMsg}`);
+        return { success: false, error: 'post_failed', details: errorMsg, logs, foundCommits: importantCommits };
     }
 }
 

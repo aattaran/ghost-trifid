@@ -23,9 +23,10 @@ export async function generateOptionsAction(input: string) {
 
 // Action to generate an image preview
 // NOTE: This function still uses Imagen for UI previews, not for autopilot posts
-export async function generateImagePreview(prompt: string) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function generateImagePreview(_prompt: string): Promise<{ success: boolean; error?: string; image?: string }> {
     // DISABLED: Return error since we're using code screenshots now
-    return { success: false, error: "Image generation disabled. Using code screenshots instead." };
+    return { success: false, error: "Image generation disabled. Using code screenshots instead.", image: undefined };
     /* Original Imagen code:
     try {
         const imgBuffer = await generateImage(prompt);
@@ -110,8 +111,9 @@ export async function postCreativeTweet(
 
         return { success: false, error: "Invalid content format" };
 
-    } catch (error: any) {
+    } catch (error) {
+        const errMsg = error instanceof Error ? error.message : "Unknown Server Action Error";
         console.error("Server Action Failed:", error);
-        return { success: false, error: error.message || "Unknown Server Action Error" };
+        return { success: false, error: errMsg };
     }
 }

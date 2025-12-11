@@ -70,6 +70,17 @@ async function main() {
 
             if (state.isActive) {
                 const now = new Date().toLocaleTimeString();
+
+                // Early time window check - skip API calls if outside 9am-8pm CST
+                const { getPostTypeForTime } = await import('../lib/code-feature-fallback');
+                const schedule = getPostTypeForTime();
+                if (!schedule.allowed) {
+                    // Silent skip - just show a brief log
+                    const cstNow = new Date().toLocaleString("en-US", { timeZone: "America/Chicago" });
+                    console.log(`[${now}] 💤 Outside posting window (CST: ${cstNow.split(',')[1]?.trim()}). Waiting...`);
+                    return; // Skip to next scheduled check
+                }
+
                 process.stdout.write(`[${now}] 🔍 Checking... `);
 
                 const result = await checkAndRunAutoPilot();

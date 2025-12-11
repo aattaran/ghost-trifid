@@ -1,5 +1,3 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 // We will define the models to try in order of preference
 const MODELS = [
     "imagen-4.0-generate-001", // Latest/Greatest (June 2025)
@@ -58,8 +56,9 @@ export async function generateImage(prompt: string): Promise<Buffer | null> {
     for (const model of MODELS) {
         try {
             return await tryModel(model);
-        } catch (error: any) {
-            console.warn(`⚠️ Failed with ${model}: ${error.message?.slice(0, 100)}...`);
+        } catch (error) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            console.warn(`⚠️ Failed with ${model}: ${errMsg.slice(0, 100)}...`);
             // If it's the last model, log the full error and return null
             if (model === MODELS[MODELS.length - 1]) {
                 console.error("❌ All image models failed.");

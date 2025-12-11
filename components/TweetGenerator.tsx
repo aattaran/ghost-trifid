@@ -250,7 +250,7 @@ export default function TweetGenerator() {
         try {
             const res = await generateImagePreview(prompt);
             if (res.success && res.image) {
-                setPreviewImages(prev => ({ ...prev, [index]: res.image }));
+                setPreviewImages(prev => ({ ...prev, [index]: res.image! }));
             }
         } catch (e) {
             console.error("Image preview failed", e);

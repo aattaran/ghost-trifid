@@ -46,7 +46,7 @@ async function saveState(state: AutoPilotState) {
     await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
-function getPostTypeForTime(): { allowed: boolean; type: 'hook' | 'value' | 'thread'; tone: string } {
+export function getPostTypeForTime(): { allowed: boolean; type: 'hook' | 'value' | 'thread'; tone: string } {
     const now = new Date();
     const cstDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" }));
     const hour = cstDate.getHours();
@@ -177,7 +177,7 @@ async function extractFeaturesWithAI(
 ): Promise<CodeFeature[]> {
     const prompt = `
     Analyze these code files from the "${repoName}" repository.
-    Extract 3-5 interesting technical features worth posting about on Twitter.
+    Extract up to 100 interesting technical features worth posting about on Twitter.
     
     Focus on:
     - APIs/integrations used
@@ -342,68 +342,122 @@ export async function postAboutCodeFeature(
     const summaryRes = await fetchAndSummarizeRepo(state.monitoredRepo);
     const contextSummary = (summaryRes.success && summaryRes.summary) ? summaryRes.summary : "";
 
-    // Build prompt for existing generateOptionsAction (same as main autopilot)
+    // STEP 1: Extract code snippets FIRST from feature files
+    // We'll then generate tweet text specifically ABOUT these snippets
+    const codeSnippets: { file: string; snippet: string; startLine: number }[] = [];
+
+    for (let i = 0; i < Math.min(3, feature.files.length); i++) {
+        const fileToUse = feature.files[i];
+        const codeContent = await getRepoFileContentRaw(owner, repo, fileToUse);
+
+        if (codeContent) {
+            const lines = codeContent.split('\n');
+            // Extract different portions for variety
+            const startLine = Math.min(i * 15, Math.max(0, lines.length - 20));
+            const snippet = lines.slice(startLine, startLine + 20).join('\n');
+            codeSnippets.push({ file: fileToUse, snippet, startLine });
+            logs.push(`📸 Extracted code from ${fileToUse.split('/').pop()} (lines ${startLine}-${startLine + 20})`);
+        }
+    }
+
+    if (codeSnippets.length === 0) {
+        logs.push('⚠️ Could not extract any code snippets');
+        return { success: false, error: 'no_code_extracted', logs };
+    }
+
+    // STEP 2: Generate tweet text specifically ABOUT these code snippets
+    // This ensures the text matches the code images exactly AND follows the dev storyline
     const prompt = `
-    You're a software engineer sharing your development journey on Twitter.
-    Write like you're texting a fellow developer friend - casual but technical.
+    You're a software engineer documenting your genuine development journey on Twitter.
+    Write like you're telling the story of building this feature - as if you just finished coding it.
     
-    **Feature to Post About:**
-    Name: ${feature.name}
-    Description: ${feature.description}
-    Files: ${feature.files.join(', ')}
+    **THE DEVELOPMENT STORY SO FAR:**
+    ${state.lastPostContent ? `Your last update was: "${state.lastPostContent}"` : 'This is the start of your journey documenting this project.'}
+    
+    **WHAT YOU'RE SHOWING TODAY:**
+    Feature: ${feature.name}
+    ${feature.description}
+    
+    **THE CODE YOU JUST WROTE (each tweet explains one snippet):**
+    ${codeSnippets.map((cs, i) => `
+    **Tweet ${i + 1} - From ${cs.file.split('/').pop()}:**
+    \`\`\`
+    ${cs.snippet.substring(0, 800)}
+    \`\`\`
+    `).join('\n')}
     
     **Project Context:**
     ${contextSummary}
     
-    **Previous Post (for story continuity):**
-    ${state.lastPostContent || 'None'}
+    **STORYLINE GUIDELINES:**
+    - This is Chapter ${(state.postedFeatures?.length || 0) + 1} of your build journey
+    - Reference your previous post naturally: "After getting X working, moved on to..."
+    - Each tweet explains the specific code shown in its image
+    - Be authentic: "This took longer than expected" or "Finally cracked this pattern"
+    - Share the WHY behind decisions, not just the WHAT
+    - Sound like a real dev log, not marketing
+    - Only #BuildInPublic hashtag (in first tweet only)
     
-    **Tone:** Technical deep-dive with story progression
-    **Format:** thread
-    
-    **Voice Guidelines:**
-    - Sound human, not a marketing bot
-    - Use technical terms naturally (no explaining basics)
-    - Be honest about challenges, not just wins
-    - Skip the hype - just facts about what you built
-    - Only use #BuildInPublic hashtag
+    **Format:** Generate exactly ${codeSnippets.length} tweets as a JSON array.
+    Return ONLY a JSON array: ["tweet 1", "tweet 2", "tweet 3"]
     `;
 
-    console.log(`🧠 Generating thread content for feature: ${feature.name}...`);
-    logs.push(`Generating thread content...`);
+    console.log(`🧠 Generating aligned thread (${codeSnippets.length} tweets for ${codeSnippets.length} code snippets)...`);
+    logs.push(`Generating thread aligned with code snippets...`);
 
-    const optionsRes = await generateOptionsAction(prompt);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+    let thread: string[] = [];
 
-    if (!optionsRes.success || !optionsRes.data) {
-        logs.push('Generation failed.');
-        return { success: false, error: 'gen_failed', logs };
-    }
+    try {
+        const result = await model.generateContent(prompt);
+        let response = result.response.text().trim();
+        response = response.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        thread = JSON.parse(response);
 
-    const thread = optionsRes.data.thread; // This is the string[] for thread
-
-    // Generate code screenshots for EACH tweet from monitored repo
-    let imagePrompts: string[] = [];
-    // owner, repo already declared above at line 304
-
-    for (let i = 0; i < thread.length; i++) {
-        // Use different files from the feature for variety
-        const fileIndex = i % feature.files.length;
-        const fileToUse = feature.files[fileIndex];
-        const codeContent = await getRepoFileContentRaw(owner, repo, fileToUse);
-
-        if (codeContent) {
-            // Use different line ranges for variety across tweets
-            const lines = codeContent.split('\n');
-            const startLine = Math.min(i * 20, Math.max(0, lines.length - 25));
-            const snippet = lines.slice(startLine, startLine + 25).join('\n');
-            imagePrompts.push(`CODE:${snippet}`);
-            logs.push(`📸 Tweet ${i + 1}: code from ${fileToUse.split('/').pop()} (lines ${startLine}-${startLine + 25})`);
-        } else {
-            logs.push(`⚠️ Tweet ${i + 1}: no image (code fetch failed for ${fileToUse})`);
+        if (!Array.isArray(thread) || thread.length < 2) {
+            throw new Error('Invalid thread format');
         }
+    } catch (error) {
+        // Fallback to generateOptionsAction
+        logs.push('Direct generation failed, trying fallback...');
+        const optionsRes = await generateOptionsAction(prompt);
+        if (!optionsRes.success || !optionsRes.data) {
+            logs.push('Generation failed.');
+            return { success: false, error: 'gen_failed', logs };
+        }
+        thread = optionsRes.data.thread;
     }
 
-    // Post to Twitter as a thread with code screenshots
+    // STEP 3: Build image prompts - 50% code screenshot, 50% Mermaid flowchart
+    const useMermaid = Math.random() < 0.5;
+    let imagePrompts: string[] = [];
+
+    if (useMermaid) {
+        // Generate Mermaid flowchart
+        logs.push('🎲 Using Mermaid flowchart for this post');
+        try {
+            const { saveMermaidDiagram, generateFeatureFlowchart } = await import('./mermaid-generator');
+            const diagramDef = generateFeatureFlowchart(feature.name, feature.description, feature.files);
+            const filename = `feature-${Date.now()}.png`;
+            const filepath = await saveMermaidDiagram(diagramDef, filename, 'dark');
+            if (filepath) {
+                imagePrompts = [`DIAGRAM:${filepath}`];
+            } else {
+                // Fallback to code if diagram fails
+                logs.push('⚠️ Mermaid failed, falling back to code screenshot');
+                imagePrompts = codeSnippets.map(cs => `CODE:${cs.snippet}`);
+            }
+        } catch (err) {
+            logs.push('⚠️ Mermaid generation error, using code screenshot');
+            imagePrompts = codeSnippets.map(cs => `CODE:${cs.snippet}`);
+        }
+    } else {
+        // Use code screenshots (aligned with tweet text)
+        logs.push('🎲 Using code screenshot for this post');
+        imagePrompts = codeSnippets.map(cs => `CODE:${cs.snippet}`);
+    }
+
+    // Post to Twitter as a thread
     logs.push(`📤 Posting ${thread.length}-tweet thread with ${imagePrompts.length} images...`);
     const postRes = await postCreativeTweet(thread, 'thread', imagePrompts);
 

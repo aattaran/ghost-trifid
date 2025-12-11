@@ -37,7 +37,7 @@ export interface TwitterQuota {
 }
 
 // Store quota state
-let currentQuota: TwitterQuota = {
+const currentQuota: TwitterQuota = {
     dailyLimit: 17,
     dailyRemaining: 17,
     dailyReset: new Date(),
@@ -96,7 +96,7 @@ async function autoRetry<T>(operation: () => Promise<T>, maxRetries = 2): Promis
     for (let i = 0; i <= maxRetries; i++) {
         try {
             return await operation();
-        } catch (error: any) {
+        } catch (error) {
             if (error instanceof ApiResponseError && error.code === 429) {
                 console.warn(`⚠️ Twitter Rate Limit Hit! (Attempt ${i + 1}/${maxRetries + 1})`);
 
@@ -164,18 +164,19 @@ export async function postToTwitter(content: string) {
         const tweet = await autoRetry(() => rwClient.v2.tweet(finalContent));
         console.log("✅ Tweet published:", tweet);
         return { success: true, data: tweet };
-    } catch (error: any) {
+    } catch (error) {
         // ENHANCED DEBUGGING: Detailed error logging
         console.error("❌ Twitter API Failed.");
 
-        if (error.code) console.error("Error Code:", error.code);
-        if (error.data) {
+        if (error instanceof ApiResponseError) {
+            if (error.code) console.error("Error Code:", error.code);
             console.error("Error Details:", JSON.stringify(error.data, null, 2));
-        } else {
-            console.error("Full Error:", error);
+            return { success: false, error: error.data || error.message };
         }
 
-        return { success: false, error: error.data || error.message };
+        console.error("Full Error:", error);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        return { success: false, error: errMsg };
     }
 }
 
@@ -210,20 +211,24 @@ export async function postThread(tweets: { text: string; media?: { media_ids: st
                 : tweet.text
         }));
 
-        // Cast to any to avoid strict tuple length checks from the library types
-        const result = await autoRetry(() => rwClient.v2.tweetThread(safeTweets as any));
+        // Cast to satisfy strict tuple length checks from the library types
+        const result = await autoRetry(() => rwClient.v2.tweetThread(safeTweets as Parameters<typeof rwClient.v2.tweetThread>[0]));
         console.log("✅ Thread published. Count:", result.length);
 
         // Log each tweet ID and URL for verification
-        result.forEach((tweet: any, index: number) => {
-            const id = tweet.data?.id || tweet.id;
+        result.forEach((tweet, index: number) => {
+            const id = tweet.data?.id;
             console.log(`   Tweet ${index + 1}: https://x.com/i/status/${id}`);
         });
 
         return { success: true, data: result };
-    } catch (error: any) {
-        console.error("❌ Thread Failed:", JSON.stringify(error, null, 2));
-        return { success: false, error: error.data || error.message };
+    } catch (error) {
+        console.error("❌ Thread Failed:", error);
+        if (error instanceof ApiResponseError) {
+            return { success: false, error: error.data || error.message };
+        }
+        const errMsg = error instanceof Error ? error.message : String(error);
+        return { success: false, error: errMsg };
     }
 }
 
@@ -237,9 +242,10 @@ export async function verifyTwitterCredentials() {
     try {
         const me = await autoRetry(() => rwClient.v2.me());
         return { success: true, username: me.data.username };
-    } catch (error: any) {
+    } catch (error) {
         console.error("Auth Check Failed:", error);
-        return { success: false, error: error.message };
+        const errMsg = error instanceof Error ? error.message : String(error);
+        return { success: false, error: errMsg };
     }
 }
 
@@ -309,8 +315,9 @@ export async function searchViralTweets(query: string): Promise<ViralTweet[]> {
             };
         });
 
-    } catch (error: any) {
-        console.error("❌ Search Failed:", error.message || "Unknown error");
+    } catch (error) {
+        const errMsg = error instanceof Error ? error.message : "Unknown error";
+        console.error("❌ Search Failed:", errMsg);
 
         // FAIL-SAFE: If API fails (Rate Limit / 403 Forbidden for Free Tier), return Mock Data
         // This ensures the UI still shows how the feature *would* work.

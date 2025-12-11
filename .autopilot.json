@@ -4,8 +4,8 @@
   "isActive": true,
   "monitoredRepo": "aattaran/tiktok",
   "monitoringMode": "remote",
-  "postsToday": 17,
-  "lastPostDate": "2025-12-09",
+  "postsToday": 4,
+  "lastPostDate": "2025-12-10",
   "postedCommits": [
     "6a172793067a42d7409c3f356c57393de9780b1b",
     "c0f6d899d1b2e6b82a524133c65530e6fa9fcecb",
@@ -22,49 +22,182 @@
     "1eae3901225ccdf21b1d509bdca999d69d8871fb",
     "d98b46508d66cf9bdadb5ddec157a6e690b6e4a1"
   ],
-  "lastPostContent": "Continuing our #BuildInPublic journey for `aattaran/tiktok`! This week, a big win for UI: we've standardized our form handling with `react-hook-form` & `yup`. Type-safe, robust forms are now default! ",
-  "lastPostTimestamp": 1765319339131,
+  "lastPostContent": "Alright #BuildInPublic, Chapter 3 is here! 🚀 After getting our React UI foundation & Vite build set up last week, today it's all about the `manifest.json`. This file is the absolute core of our Chrom",
+  "lastPostTimestamp": 1765409830532,
   "analyzedFeatures": [
     {
-      "name": "Chrome Extension Architecture (tikko-ext-main)",
-      "description": "The `tikko-ext-main` directory represents a Chrome extension. It utilizes `vite` as a build tool, explicitly configuring rollupOptions for multi-entry-point builds to generate separate files for the background service worker and popup UI. The manifest.json defines permissions, host permissions, and externally_connectable origins, indicating interaction with specific websites.",
+      "name": "React-based UI",
+      "description": "The `tikko-ext-main` project leverages React for building the user interface of the Chrome extension, as evident from the presence of `react`, `react-dom`, and related ESLint plugins. React components are used for the popup UI.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/eslint.config.js",
+        "tikko-ext-main/tikko-ext-main/package.json",
+        "tikko-ext-main/tikko-ext-main/vite.config.js"
+      ],
+      "relevance": 9
+    },
+    {
+      "name": "Vite Build Tool",
+      "description": "The project uses Vite as its build tool, providing fast development builds and optimized production bundles. Vite is configured to build separate entry points for the background script and the popup, offering modularity.",
       "files": [
         "tikko-ext-main/tikko-ext-main/vite.config.js",
+        "tikko-ext-main/tikko-ext-main/package.json"
+      ],
+      "relevance": 9
+    },
+    {
+      "name": "Chrome Extension Manifest",
+      "description": "The `manifest.json` file defines the Chrome extension's metadata, including name, version, description, icons, and permissions.  It specifies the popup UI, background script, content security policy, and externally connectable origins.",
+      "files": [
         "tikko-ext-main/tikko-ext-main/manifest.json"
       ],
       "relevance": 9
     },
     {
-      "name": "Shared UI Component Styling with Tailwind CSS",
-      "description": "Both `tikko-main` and `tikko-ext-main` projects utilize Tailwind CSS for styling. They extend the default Tailwind configuration with custom font families, colors, screen sizes, and box shadows. This suggests a consistent design language across both the main application and the Chrome extension.",
+      "name": "Next.js Framework",
+      "description": "The `tikko-main` project utilizes the Next.js framework for building a web application.  Next.js provides features like server-side rendering, routing, and API routes.",
+      "files": [
+        "tikko-main/tikko-main/package.json",
+        "tikko-main/tikko-main/README.md"
+      ],
+      "relevance": 9
+    },
+    {
+      "name": "Tailwind CSS Styling",
+      "description": "Tailwind CSS is used for styling, offering a utility-first approach for creating visually appealing and responsive user interfaces. Custom themes, fonts, colors, and screen sizes are defined within the Tailwind configuration.",
       "files": [
         "tikko-ext-main/tikko-ext-main/tailwind.config.js",
+        "tikko-ext-main/tikko-ext-main/postcss.config.js",
         "tikko-main/tikko-main/tailwind.config.js"
       ],
       "relevance": 8
     },
     {
-      "name": "React Hook Form and Yup Integration",
-      "description": "Both projects leverage `react-hook-form` for form management and `yup` for schema validation. The `@hookform/resolvers` library is used to integrate Yup's schema validation with React Hook Form's form state management. This combination provides a robust and type-safe approach to form handling.",
+      "name": "ESLint for Code Quality",
+      "description": "ESLint is configured with React-specific rules, including hooks and refresh, promoting code consistency and best practices.  The configuration extends recommended rules from ESLint, React, and React Hooks.",
       "files": [
-        "tikko-ext-main/tikko-ext-main/package.json",
+        "tikko-ext-main/tikko-ext-main/eslint.config.js",
+        "tikko-ext-main/tikko-ext-main/package.json"
+      ],
+      "relevance": 7
+    },
+    {
+      "name": "React Hook Form",
+      "description": "React Hook Form is used for managing forms, offering a performant and flexible solution for handling form state and validation. It is integrated with Yup for schema-based validation.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/package.json"
+      ],
+      "relevance": 7
+    },
+    {
+      "name": "Yup for Validation",
+      "description": "Yup is used for defining schemas to validate form inputs, ensuring data integrity and providing a structured approach to validation. This is often integrated with React Hook Form.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/package.json"
+      ],
+      "relevance": 7
+    },
+    {
+      "name": "Axios for API Requests",
+      "description": "Axios is used for making HTTP requests to external APIs. This is a common library for fetching and sending data in web applications and extensions.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/package.json"
+      ],
+      "relevance": 7
+    },
+    {
+      "name": "Next.js API Routes",
+      "description": "The `tikko-main` likely uses Next.js API routes (in the `pages/api` directory) to handle backend logic and interact with databases or external services.  This allows for building a full-stack application within Next.js.",
+      "files": [
         "tikko-main/tikko-main/package.json"
       ],
       "relevance": 7
     },
     {
-      "name": "API interaction using Axios",
-      "description": "The packages mention the axios package. It is used for making HTTP requests. This suggests the application will interact with a backend or external API endpoints to fetch or send data.",
+      "name": "Redux Toolkit for State Management",
+      "description": "Redux Toolkit is used for managing application state in `tikko-main`, providing a structured and efficient way to handle complex state logic. Redux Persist is also used to persist the redux store.",
+      "files": [
+        "tikko-main/tikko-main/package.json"
+      ],
+      "relevance": 7
+    },
+    {
+      "name": "MongoDB Integration",
+      "description": "The `tikko-main` project integrates with MongoDB for data storage, utilizing the `mongodb` and `mongoose` packages.  Mongoose provides an elegant way to interact with MongoDB using schemas and models.",
+      "files": [
+        "tikko-main/tikko-main/package.json"
+      ],
+      "relevance": 7
+    },
+    {
+      "name": "NextAuth.js for Authentication",
+      "description": "NextAuth.js is used for handling authentication in `tikko-main`, providing a flexible and secure way to manage user sign-in and sign-out.  Google OAuth is specifically integrated.",
+      "files": [
+        "tikko-main/tikko-main/package.json"
+      ],
+      "relevance": 7
+    },
+    {
+      "name": "Stripe Integration",
+      "description": "The project includes Stripe for handling payments, providing a robust and secure platform for processing transactions. The project uses both `@stripe/stripe-js` and the `stripe` npm package",
+      "files": [
+        "tikko-main/tikko-main/package.json"
+      ],
+      "relevance": 7
+    },
+    {
+      "name": "Font Awesome Icons",
+      "description": "The project leverages Font Awesome for incorporating icons into the user interface, offering a wide range of scalable vector icons. React Font Awesome library provides React components to render icons.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/package.json"
+      ],
+      "relevance": 6
+    },
+    {
+      "name": "React Router DOM for Navigation",
+      "description": "React Router DOM is used for managing navigation within the extension's popup UI.  It facilitates creating single-page applications within the extension.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/package.json"
+      ],
+      "relevance": 6
+    },
+    {
+      "name": "React Toastify for Notifications",
+      "description": "React Toastify is used for displaying toast notifications within the UI, providing a user-friendly way to display messages and alerts.",
       "files": [
         "tikko-ext-main/tikko-ext-main/package.json",
         "tikko-main/tikko-main/package.json"
       ],
       "relevance": 6
+    },
+    {
+      "name": "React Select Component",
+      "description": "React Select provides a customizable select component, likely used to enhance the UI and user experience when selecting options within forms or other interactive elements.",
+      "files": [
+        "tikko-main/tikko-main/package.json"
+      ],
+      "relevance": 6
+    },
+    {
+      "name": "AES Encryption",
+      "description": "The project utilizes AES encryption (from `crypto` lib) for secure data handling. This could include encrypting sensitive information before storing it in the database or transmitting it over the network.",
+      "files": [
+        "tikko-main/tikko-main/package.json"
+      ],
+      "relevance": 6
+    },
+    {
+      "name": "Date/Time Manipulation Libraries",
+      "description": "The project includes both `dayjs` and `moment` for date and time manipulation. Choosing between them may depend on the specific requirements and bundle size considerations.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/package.json",
+        "tikko-main/tikko-main/package.json"
+      ],
+      "relevance": 5
     }
   ],
   "postedFeatures": [
-    "Chrome Extension Architecture (tikko-ext-main)",
-    "Shared UI Component Styling with Tailwind CSS",
-    "React Hook Form and Yup Integration"
+    "React-based UI",
+    "Vite Build Tool",
+    "Chrome Extension Manifest"
   ]
 }

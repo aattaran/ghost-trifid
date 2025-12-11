@@ -53,9 +53,10 @@ export async function logAutoPilotAction(log: AutoPilotLog) {
 
         console.log('📝 Logged to Supabase:', log.action_type)
         return { success: true, data }
-    } catch (e: any) {
-        console.error('❌ Supabase connection error:', e.message)
-        return { success: false, error: e.message }
+    } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        console.error('❌ Supabase connection error:', errMsg);
+        return { success: false, error: errMsg };
     }
 }
 
