@@ -91,6 +91,7 @@ export async function postCreativeTweet(
                 // If we have a prompt for this index, generate and upload
                 if (prompts[index]) {
                     mediaId = await uploadPrompt(prompts[index]);
+                    console.log(`📎 Tweet ${index + 1} media: ${mediaId ? 'uploaded (' + mediaId + ')' : 'FAILED/skipped'}`);
                 }
 
                 return {
@@ -98,6 +99,12 @@ export async function postCreativeTweet(
                     media: mediaId ? { media_ids: [mediaId] } : undefined
                 };
             }));
+
+            // DEBUG: Log what we're sending to Twitter
+            console.log('📤 Thread structure:', JSON.stringify(threadTweets.map(t => ({
+                text: t.text.substring(0, 50) + '...',
+                hasMedia: !!t.media
+            })), null, 2));
 
             return await postThread(threadTweets);
 

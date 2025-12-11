@@ -457,6 +457,45 @@ export async function postAboutCodeFeature(
         imagePrompts = codeSnippets.map(cs => `CODE:${cs.snippet}`);
     }
 
+    // DUPLICATE CHECK: Ensure content is different from last post
+    const isDuplicateContent = (newContent: string | string[], lastPostContent: string | undefined): boolean => {
+        if (!lastPostContent) return false;
+        const newText = Array.isArray(newContent) ? newContent[0] : newContent;
+        const newStart = newText.substring(0, 100).toLowerCase().trim();
+        const lastStart = lastPostContent.substring(0, 100).toLowerCase().trim();
+
+        let matches = 0;
+        const minLen = Math.min(newStart.length, lastStart.length);
+        for (let i = 0; i < minLen; i++) {
+            if (newStart[i] === lastStart[i]) matches++;
+        }
+        const similarity = matches / minLen;
+        if (similarity > 0.8) {
+            console.log(`⚠️ Duplicate detected (${Math.round(similarity * 100)}% similar to last post)`);
+            return true;
+        }
+        return false;
+    };
+
+    // Check if generated content is too similar to last post
+    if (isDuplicateContent(thread, state.lastPostContent)) {
+        logs.push('⚠️ Generated content too similar to last post, regenerating...');
+        // Try regenerating with explicit "be different" instruction
+        const retryPrompt = `${prompt}\n\nIMPORTANT: Generate COMPLETELY DIFFERENT content from: "${state.lastPostContent}". Use a different angle or focus.`;
+        try {
+            const retryResult = await model.generateContent(retryPrompt);
+            let retryResponse = retryResult.response.text().trim();
+            retryResponse = retryResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+            const retryThread = JSON.parse(retryResponse);
+            if (Array.isArray(retryThread) && retryThread.length >= 2) {
+                thread = retryThread;
+                logs.push('✅ Regenerated unique content');
+            }
+        } catch {
+            logs.push('⚠️ Retry failed, using original content');
+        }
+    }
+
     // Post to Twitter as a thread
     logs.push(`📤 Posting ${thread.length}-tweet thread with ${imagePrompts.length} images...`);
     const postRes = await postCreativeTweet(thread, 'thread', imagePrompts);
