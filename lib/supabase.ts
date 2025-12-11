@@ -102,3 +102,42 @@ export async function getRecentLogs(repoName?: string, limit = 20) {
         return []
     }
 }
+
+/**
+ * Get recent successful posts for narrative continuity
+ * Returns the actual tweet content from the last N posts
+ */
+export async function getRecentPostsContent(repoName: string, limit = 5): Promise<string[]> {
+    if (!supabaseKey) return []
+
+    try {
+        const { data, error } = await supabase
+            .from('autopilot_logs')
+            .select('content, created_at')
+            .eq('repo_name', repoName)
+            .eq('action_type', 'post_success')
+            .order('created_at', { ascending: false })
+            .limit(limit)
+
+        if (error || !data) return []
+
+        // Extract the posted content from each log
+        const posts: string[] = []
+        for (const log of data) {
+            const content = log.content
+            if (content?.generated_thread) {
+                posts.push(Array.isArray(content.generated_thread)
+                    ? content.generated_thread.join(' | ')
+                    : content.generated_thread)
+            } else if (content?.generated_value) {
+                posts.push(content.generated_value)
+            } else if (content?.generated_hook) {
+                posts.push(content.generated_hook)
+            }
+        }
+
+        return posts.reverse() // Return in chronological order
+    } catch {
+        return []
+    }
+}

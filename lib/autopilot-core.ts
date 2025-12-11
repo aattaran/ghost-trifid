@@ -2,7 +2,7 @@ import { getCurrentCommitHash, getNewCommits, getProjectContextSummary } from ".
 import { getLatestRemoteCommitHash, getRemoteCommits, fetchAndSummarizeRepo } from "./github-api";
 import { generateOptionsAction, postCreativeTweet } from "./thread-api";
 import { searchViralTweets } from "./twitter";
-import { logAutoPilotAction, getLastPostedCommit } from "./supabase";
+import { logAutoPilotAction, getLastPostedCommit, getRecentPostsContent } from "./supabase";
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -110,11 +110,12 @@ function getPostTypeForTime(): { allowed: boolean; type: 'hook' | 'value' | 'thr
     const cstDate = new Date(now.toLocaleString("en-US", { timeZone: "America/Chicago" }));
     const hour = cstDate.getHours();
 
-    if (hour >= 9 && hour < 13) return { allowed: true, type: 'hook', tone: "High energy, hype, 'Shipping mode ON'" };
-    if (hour >= 11 && hour < 16) return { allowed: true, type: 'value', tone: "Insightful, technical deep dive" };
-    if (hour >= 16 && hour < 20) return { allowed: true, type: 'thread', tone: "Reflective, summary of progress" };
+    // Active hours: 9am-8pm CST - always prefer threads
+    if (hour >= 9 && hour < 20) {
+        return { allowed: true, type: 'thread', tone: "Technical deep-dive with story progression" };
+    }
 
-    return { allowed: false, type: 'value', tone: "Neutral" };
+    return { allowed: false, type: 'thread', tone: "Neutral" };
 }
 
 function extractKeywords(commits: string[]): string[] {
@@ -127,6 +128,31 @@ function extractKeywords(commits: string[]): string[] {
     }
 
     return Array.from(new Set(keywords.map(k => k.toLowerCase()))).slice(0, 3);
+}
+
+/**
+ * Check if content is too similar to the last post (prevents duplicates)
+ */
+function isDuplicateContent(newContent: string | string[], lastPostContent: string | undefined): boolean {
+    if (!lastPostContent) return false;
+
+    const newText = Array.isArray(newContent) ? newContent[0] : newContent;
+    const newStart = newText.substring(0, 100).toLowerCase().trim();
+    const lastStart = lastPostContent.substring(0, 100).toLowerCase().trim();
+
+    // Check if first 100 chars are >80% similar
+    let matches = 0;
+    const minLen = Math.min(newStart.length, lastStart.length);
+    for (let i = 0; i < minLen; i++) {
+        if (newStart[i] === lastStart[i]) matches++;
+    }
+
+    const similarity = matches / minLen;
+    if (similarity > 0.8) {
+        console.log(`⚠️ Duplicate detected (${Math.round(similarity * 100)}% similar to last post)`);
+        return true;
+    }
+    return false;
 }
 
 // ------------------------------------------------------------------
@@ -296,9 +322,15 @@ export async function checkAndRunAutoPilot() {
     // -----------------------------------------
     // STEP 7: Generate Content with Narrative Continuity
     // -----------------------------------------
-    const previousContext = state.lastPostContent
-        ? `\n**Previous Post (for story continuity):**\n${state.lastPostContent}\n`
+
+    // Fetch recent posts from Supabase for storyline continuity
+    const recentPosts = await getRecentPostsContent(repoName, 5);
+    const storyHistory = recentPosts.length > 0
+        ? `\n**Your Recent Posts (continue this storyline):**\n${recentPosts.map((p, i) => `${i + 1}. ${p.substring(0, 150)}...`).join('\n')}\n`
         : '';
+
+    console.log(`📚 Loaded ${recentPosts.length} recent posts for narrative context`);
+    logs.push(`Loaded ${recentPosts.length} recent posts for continuity`);
 
     const prompt = `
     You're a software engineer sharing your development journey on Twitter.
@@ -310,7 +342,7 @@ export async function checkAndRunAutoPilot() {
     **Project Context:**
     ${contextSummary}
     ${viralContext}
-    ${previousContext}
+    ${storyHistory}
     
     **Tone:** ${schedule.tone}
     **Format:** ${schedule.type}
@@ -396,6 +428,31 @@ export async function checkAndRunAutoPilot() {
             console.log('📸 Using real code screenshot for thread!');
             // Prefix with CODE: to trigger code screenshot in thread-api
             imagePromptsToUse = [`CODE:${fileResult.code}`];
+        }
+    }
+
+    // DUPLICATE CHECK: Regenerate if content is too similar
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+
+    while (isDuplicateContent(contentToPost, state.lastPostContent) && retryCount < MAX_RETRIES) {
+        retryCount++;
+        console.log(`🔄 Content similar to last post. Regenerating (attempt ${retryCount}/${MAX_RETRIES})...`);
+        logs.push(`Regenerating content (attempt ${retryCount})...`);
+
+        // Add instruction to generate different content
+        const retryPrompt = `
+        ${prompt}
+        
+        IMPORTANT: Generate COMPLETELY DIFFERENT content from this:
+        "${state.lastPostContent}"
+        
+        Focus on a DIFFERENT aspect, angle, or technical detail. Be creative!
+        `;
+
+        const retryRes = await generateOptionsAction(retryPrompt);
+        if (retryRes.success && retryRes.data) {
+            contentToPost = schedule.type === 'thread' ? retryRes.data.thread : retryRes.data.value;
         }
     }
 
@@ -559,8 +616,10 @@ async function backfillHistoricalCommits(
         return { success: true, changes: 0, message: 'Outside posting hours', logs };
     }
 
-    const previousContext = state.lastPostContent
-        ? `\n**Previous Post (for story continuity):**\n${state.lastPostContent}\n`
+    // Fetch post history for narrative continuity
+    const recentPosts = await getRecentPostsContent(repoName, 5);
+    const storyHistory = recentPosts.length > 0
+        ? `\n**Your Recent Posts (continue this storyline):**\n${recentPosts.map((p, i) => `${i + 1}. ${p.substring(0, 150)}...`).join('\n')}\n`
         : '';
 
     const prompt = `
@@ -572,7 +631,7 @@ async function backfillHistoricalCommits(
     
     **Project Context:**
     ${contextSummary}
-    ${previousContext}
+    ${storyHistory}
     
     **Tone:** ${schedule.tone}
     **Format:** ${schedule.type}

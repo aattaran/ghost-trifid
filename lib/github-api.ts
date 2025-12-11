@@ -244,3 +244,54 @@ export async function getRepoFileContentRaw(
     }
 }
 
+/**
+ * Fetches the full file structure of a repository using GitHub Trees API
+ * @param owner Repo owner
+ * @param repo Repo name
+ * @param branch Branch name (default: main)
+ * @returns Array of file paths, or null on error
+ */
+export async function getRepoFileStructure(
+    owner: string,
+    repo: string,
+    branch: string = 'main'
+): Promise<string[] | null> {
+    const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+
+    try {
+        const headers: HeadersInit = {
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'Antigravity-Agent'
+        };
+
+        if (process.env.GITHUB_TOKEN) {
+            headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+        }
+
+        const response = await fetch(url, {
+            headers,
+            signal: AbortSignal.timeout(15000)
+        });
+
+        if (!response.ok) {
+            console.log(`⚠️ Could not fetch repo structure: ${response.status}`);
+            return null;
+        }
+
+        const data = await response.json();
+
+        if (!data.tree || !Array.isArray(data.tree)) {
+            return null;
+        }
+
+        // Filter to only files (not directories) and return paths
+        return data.tree
+            .filter((item: any) => item.type === 'blob')
+            .map((item: any) => item.path);
+
+    } catch (error) {
+        console.error('❌ Failed to fetch repo structure:', error);
+        return null;
+    }
+}
+

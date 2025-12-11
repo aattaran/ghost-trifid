@@ -1,23 +1,24 @@
 /**
- * Code Screenshot Generator using Carbonara API
+ * Code Screenshot Generator using Shiki + Canvas (fully local)
  * 
- * Carbonara is an unofficial API that wraps carbon.now.sh
- * It uses Puppeteer to generate beautiful code screenshots
+ * Generates beautiful code screenshots locally using:
+ * - Shiki: VS Code-quality syntax highlighting
+ * - @napi-rs/canvas: Node.js canvas for image generation
  * 
- * API: https://carbonara.solopov.dev/api/cook
+ * No external API calls, no watermarks, works offline
  */
 
-const CARBONARA_API = 'https://carbonara.solopov.dev/api/cook';
+import { createHighlighter, type BundledLanguage, type BundledTheme } from 'shiki';
+import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
 
-// Available themes (most popular ones)
+// Available themes from Shiki
 export type CarbonTheme =
-    | 'monokai'
     | 'dracula'
-    | 'night-owl'
-    | 'one-dark'
-    | 'seti'
-    | 'synthwave-84'
-    | 'material';
+    | 'github-dark'
+    | 'one-dark-pro'
+    | 'nord'
+    | 'material-theme-darker'
+    | 'vitesse-dark';
 
 // Language mappings
 export type CodeLanguage =
@@ -29,7 +30,9 @@ export type CodeLanguage =
     | 'bash'
     | 'json'
     | 'css'
-    | 'html';
+    | 'html'
+    | 'tsx'
+    | 'jsx';
 
 export interface CodeScreenshotOptions {
     code: string;
@@ -42,8 +45,21 @@ export interface CodeScreenshotOptions {
     paddingHorizontal?: string;
 }
 
+// Cache the highlighter for performance
+let highlighterPromise: ReturnType<typeof createHighlighter> | null = null;
+
+async function getHighlighter() {
+    if (!highlighterPromise) {
+        highlighterPromise = createHighlighter({
+            themes: ['dracula', 'github-dark', 'one-dark-pro', 'nord', 'vitesse-dark'],
+            langs: ['typescript', 'javascript', 'python', 'rust', 'go', 'bash', 'json', 'css', 'html', 'tsx', 'jsx']
+        });
+    }
+    return highlighterPromise;
+}
+
 /**
- * Generates a beautiful code screenshot using the Carbonara API
+ * Generates a beautiful code screenshot locally using Shiki + Canvas
  * @param options Code and styling options
  * @returns Buffer of the PNG image, or null if failed
  */
@@ -52,11 +68,6 @@ export async function generateCodeScreenshot(options: CodeScreenshotOptions): Pr
         code,
         language = 'typescript',
         theme = 'dracula',
-        backgroundColor = 'rgba(0,0,0,0)', // Transparent
-        dropShadow = true,
-        windowControls = true,
-        paddingVertical = '40px',
-        paddingHorizontal = '40px'
     } = options;
 
     // Skip if code is too short or empty
@@ -66,42 +77,85 @@ export async function generateCodeScreenshot(options: CodeScreenshotOptions): Pr
     }
 
     try {
-        console.log(`📸 Generating code screenshot (${code.length} chars, theme: ${theme})...`);
+        console.log(`📸 Generating code screenshot locally (${code.length} chars, theme: ${theme})...`);
 
-        const response = await fetch(CARBONARA_API, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                code,
-                language,
-                theme,
-                backgroundColor,
-                dropShadow,
-                windowControls,
-                paddingVertical,
-                paddingHorizontal,
-                // Additional styling
-                fontFamily: 'JetBrains Mono',
-                fontSize: '14px',
-                lineNumbers: true,
-                watermark: false
-            }),
-            signal: AbortSignal.timeout(30000) // 30s timeout (screenshots can be slow)
+        const highlighter = await getHighlighter();
+
+        // Get tokens from shiki
+        const tokens = highlighter.codeToTokensBase(code, {
+            lang: language as BundledLanguage,
+            theme: theme as BundledTheme
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`❌ Carbonara API error: ${response.status} - ${errorText}`);
-            return null;
+        // Canvas settings
+        const fontSize = 14;
+        const lineHeight = 22;
+        const padding = 40;
+        const charWidth = 8.4; // Approximate monospace char width
+
+        // Calculate dimensions
+        const lines = code.split('\n');
+        const maxLineLength = Math.max(...lines.map(l => l.length));
+        const width = Math.min(Math.max(maxLineLength * charWidth + padding * 2, 400), 1200);
+        const height = lines.length * lineHeight + padding * 2;
+
+        // Create canvas
+        const canvas = createCanvas(width, height);
+        const ctx = canvas.getContext('2d');
+
+        // Background gradient
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#1a1a2e');
+        gradient.addColorStop(1, '#16213e');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // Code background with rounded corners
+        const codeX = 20;
+        const codeY = 20;
+        const codeWidth = width - 40;
+        const codeHeight = height - 40;
+        const radius = 12;
+
+        ctx.fillStyle = '#282a36'; // Dracula background
+        ctx.beginPath();
+        ctx.roundRect(codeX, codeY, codeWidth, codeHeight, radius);
+        ctx.fill();
+
+        // Window controls (red, yellow, green dots)
+        const dotY = codeY + 15;
+        const dotRadius = 6;
+        ctx.fillStyle = '#ff5f56';
+        ctx.beginPath();
+        ctx.arc(codeX + 20, dotY, dotRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffbd2e';
+        ctx.beginPath();
+        ctx.arc(codeX + 40, dotY, dotRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#27ca40';
+        ctx.beginPath();
+        ctx.arc(codeX + 60, dotY, dotRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw code with syntax highlighting
+        ctx.font = `${fontSize}px "Consolas", "Monaco", monospace`;
+        let y = codeY + 45;
+
+        for (const line of tokens) {
+            let x = codeX + 20;
+            for (const token of line) {
+                ctx.fillStyle = token.color || '#f8f8f2';
+                ctx.fillText(token.content, x, y);
+                x += ctx.measureText(token.content).width;
+            }
+            y += lineHeight;
         }
 
-        // Response is the PNG image directly
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        // Convert to PNG buffer
+        const buffer = canvas.toBuffer('image/png');
 
-        console.log(`✅ Code screenshot generated (${buffer.length} bytes)`);
+        console.log(`✅ Code screenshot generated locally (${buffer.length} bytes)`);
         return buffer;
 
     } catch (error: any) {

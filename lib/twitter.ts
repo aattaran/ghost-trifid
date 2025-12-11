@@ -213,6 +213,13 @@ export async function postThread(tweets: { text: string; media?: { media_ids: st
         // Cast to any to avoid strict tuple length checks from the library types
         const result = await autoRetry(() => rwClient.v2.tweetThread(safeTweets as any));
         console.log("✅ Thread published. Count:", result.length);
+
+        // Log each tweet ID and URL for verification
+        result.forEach((tweet: any, index: number) => {
+            const id = tweet.data?.id || tweet.id;
+            console.log(`   Tweet ${index + 1}: https://x.com/i/status/${id}`);
+        });
+
         return { success: true, data: result };
     } catch (error: any) {
         console.error("❌ Thread Failed:", JSON.stringify(error, null, 2));

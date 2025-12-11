@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@mermaidchart/sdk": "^0.2.1",
+    "@napi-rs/canvas": "^0.1.84",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-slot": "^1.2.4",
@@ -22,9 +23,11 @@
     "dotenv": "^17.2.3",
     "lucide-react": "^0.556.0",
     "next": "14.2.33",
+    "rayso-api": "^1.1.0",
     "react": "^18",
     "react-dom": "^18",
     "react-hot-toast": "^2.6.0",
+    "shiki": "^3.19.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "twitter-api-v2": "^1.28.0"

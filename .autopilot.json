@@ -1,17 +1,70 @@
 {
-  "lastCommitHash": "e8f03a12b77dc81ada178a017e88d33cba03fd0a",
-  "lastRunTime": 1765234418297,
+  "lastCommitHash": "1eae3901225ccdf21b1d509bdca999d69d8871fb",
+  "lastRunTime": 1765313400459,
   "isActive": true,
   "monitoredRepo": "aattaran/tiktok",
   "monitoringMode": "remote",
-  "postsToday": 5,
-  "lastPostDate": "2025-12-08",
+  "postsToday": 17,
+  "lastPostDate": "2025-12-09",
   "postedCommits": [
     "6a172793067a42d7409c3f356c57393de9780b1b",
     "c0f6d899d1b2e6b82a524133c65530e6fa9fcecb",
     "6df115047916846e061c450beb9233f6ccee950d",
-    "e8f03a12b77dc81ada178a017e88d33cba03fd0a"
+    "e8f03a12b77dc81ada178a017e88d33cba03fd0a",
+    "353c37852842158c2fcc67585a5d49536ce65131",
+    "7769dc1e35720f1e2d9e8ab79b2c2dccfac5b67b",
+    "f6f0d08681ae5a0fe569a26822b6663e6a20f1cc",
+    "e845812cec33f8005ec1244ca6476e8b20f3f213",
+    "0177e64c219a62606d7bc221e93d4968eb78daf4",
+    "1ace953339e6679900afac91f64fb601971138a7",
+    "7be91644207169a80f3d0ec1018df378d09ead6b",
+    "9196556f51789d3512476afde62d7193f1c4d80b",
+    "1eae3901225ccdf21b1d509bdca999d69d8871fb",
+    "d98b46508d66cf9bdadb5ddec157a6e690b6e4a1"
   ],
-  "lastPostContent": "Building on our Google & TikTok auth, we've leveled up with TikTok Shop API integration! This unlocks seamless promo duplication for merchants. Here's the core logic 👇 for setting up the API client &",
-  "lastPostTimestamp": 1765234418297
+  "lastPostContent": "Continuing our #BuildInPublic journey for `aattaran/tiktok`! This week, a big win for UI: we've standardized our form handling with `react-hook-form` & `yup`. Type-safe, robust forms are now default! ",
+  "lastPostTimestamp": 1765319339131,
+  "analyzedFeatures": [
+    {
+      "name": "Chrome Extension Architecture (tikko-ext-main)",
+      "description": "The `tikko-ext-main` directory represents a Chrome extension. It utilizes `vite` as a build tool, explicitly configuring rollupOptions for multi-entry-point builds to generate separate files for the background service worker and popup UI. The manifest.json defines permissions, host permissions, and externally_connectable origins, indicating interaction with specific websites.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/vite.config.js",
+        "tikko-ext-main/tikko-ext-main/manifest.json"
+      ],
+      "relevance": 9
+    },
+    {
+      "name": "Shared UI Component Styling with Tailwind CSS",
+      "description": "Both `tikko-main` and `tikko-ext-main` projects utilize Tailwind CSS for styling. They extend the default Tailwind configuration with custom font families, colors, screen sizes, and box shadows. This suggests a consistent design language across both the main application and the Chrome extension.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/tailwind.config.js",
+        "tikko-main/tikko-main/tailwind.config.js"
+      ],
+      "relevance": 8
+    },
+    {
+      "name": "React Hook Form and Yup Integration",
+      "description": "Both projects leverage `react-hook-form` for form management and `yup` for schema validation. The `@hookform/resolvers` library is used to integrate Yup's schema validation with React Hook Form's form state management. This combination provides a robust and type-safe approach to form handling.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/package.json",
+        "tikko-main/tikko-main/package.json"
+      ],
+      "relevance": 7
+    },
+    {
+      "name": "API interaction using Axios",
+      "description": "The packages mention the axios package. It is used for making HTTP requests. This suggests the application will interact with a backend or external API endpoints to fetch or send data.",
+      "files": [
+        "tikko-ext-main/tikko-ext-main/package.json",
+        "tikko-main/tikko-main/package.json"
+      ],
+      "relevance": 6
+    }
+  ],
+  "postedFeatures": [
+    "Chrome Extension Architecture (tikko-ext-main)",
+    "Shared UI Component Styling with Tailwind CSS",
+    "React Hook Form and Yup Integration"
+  ]
 }
