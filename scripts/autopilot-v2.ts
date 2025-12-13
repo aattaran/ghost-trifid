@@ -31,16 +31,26 @@ if (process.platform === 'win32') {
     rl.on('close', () => shutdown('CLOSE'));
 }
 
+// DRY-RUN MODE: Set via environment variable so all modules can check it
+const args = process.argv.slice(2);
+const isDryRun = args.includes('--dry-run');
+if (isDryRun) {
+    process.env.AUTOPILOT_DRY_RUN = 'true';
+    console.log('🧪 DRY-RUN MODE: Will generate content but NOT post to Twitter');
+}
 
 async function main() {
     console.log("🚀 Starting Ghost Trifid Autopilot V2 (Headless Mode)");
+    if (isDryRun) {
+        console.log("⚠️  DRY-RUN: No tweets will be posted!");
+    }
 
     // Dynamic import to ensure env vars are loaded first
     const { checkAndRunAutoPilot, toggleAutoPilot, getAutoPilotState } = await import('../lib/autopilot-core');
 
     // Check for CLI args (e.g. npm run autopilot -- owner/repo)
-    const args = process.argv.slice(2);
-    const targetRepo = args[0];
+    // Filter out --dry-run from repo name
+    const targetRepo = args.find(arg => !arg.startsWith('--'));
 
     if (targetRepo) {
         console.log(`🎯 Target Repo from CLI: ${targetRepo}`);

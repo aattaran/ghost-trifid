@@ -154,6 +154,12 @@ async function autoRetry<T>(operation: () => Promise<T>, maxRetries = 2): Promis
 
 export async function postToTwitter(content: string) {
     try {
+        // DRY-RUN MODE: Skip actual posting
+        if (process.env.AUTOPILOT_DRY_RUN === 'true') {
+            console.log('🧪 [DRY-RUN] Would post tweet:', content.substring(0, 100) + '...');
+            return { success: true, data: { id: 'dry-run-id' }, dryRun: true };
+        }
+
         // SAFETY: Truncate content if it exceeds Twitter's 280 character limit
         let finalContent = content;
         if (content.length > 280) {
@@ -203,6 +209,16 @@ export async function uploadMedia(buffer: Buffer, mimeType: string) {
  */
 export async function postThread(tweets: { text: string; media?: { media_ids: string[] } }[]) {
     try {
+        // DRY-RUN MODE: Skip actual posting
+        if (process.env.AUTOPILOT_DRY_RUN === 'true') {
+            console.log('🧪 [DRY-RUN] Would post thread:');
+            tweets.forEach((t, i) => {
+                console.log(`   Tweet ${i + 1}: ${t.text.substring(0, 100)}...`);
+                if (t.media) console.log(`      📎 With ${t.media.media_ids.length} image(s)`);
+            });
+            return { success: true, data: [], dryRun: true };
+        }
+
         // SAFETY: Truncate each tweet text to 280 chars
         const safeTweets = tweets.map(tweet => ({
             ...tweet,
